@@ -43,6 +43,7 @@ const AlignerPortal = () => {
                 .single();
 
             if (queryError || !data) {
+                console.error('Doctor query error:', queryError);
                 setError(`Doctor not found: ${email}. Please contact administrator.`);
                 setLoading(false);
                 return;
@@ -53,7 +54,7 @@ const AlignerPortal = () => {
 
         } catch (error) {
             console.error('Error loading doctor auth:', error);
-            setError('Failed to authenticate. Please try again.');
+            setError(`Failed to authenticate: ${error.message}. Please try again.`);
         } finally {
             setLoading(false);
         }
@@ -67,19 +68,6 @@ const AlignerPortal = () => {
                 .from('aligner_sets')
                 .select(`
                     *,
-                    work!inner (
-                        work_id,
-                        person_id,
-                        type_of_work,
-                        patients!inner (
-                            person_id,
-                            patient_id,
-                            patient_name,
-                            first_name,
-                            last_name,
-                            phone
-                        )
-                    ),
                     aligner_batches (
                         aligner_batch_id,
                         batch_sequence,
@@ -98,14 +86,45 @@ const AlignerPortal = () => {
 
             if (queryError) throw queryError;
 
+            // Get unique work IDs
+            const workIds = [...new Set(sets?.map(s => s.work_id) || [])];
+
+            // Load work and patient data separately
+            let workData = {};
+            if (workIds.length > 0) {
+                const { data: workRecords, error: workError } = await supabase
+                    .from('work')
+                    .select(`
+                        work_id,
+                        person_id,
+                        type_of_work,
+                        patients (
+                            person_id,
+                            patient_id,
+                            patient_name,
+                            first_name,
+                            last_name,
+                            phone
+                        )
+                    `)
+                    .in('work_id', workIds);
+
+                if (!workError && workRecords) {
+                    workRecords.forEach(w => {
+                        workData[w.work_id] = w;
+                    });
+                }
+            }
+
             // Group by work_id to create cases
             const casesMap = {};
             sets?.forEach(set => {
                 if (!casesMap[set.work_id]) {
+                    const work = workData[set.work_id];
                     casesMap[set.work_id] = {
                         work_id: set.work_id,
-                        patient: set.work?.patients,
-                        type_of_work: set.work?.type_of_work,
+                        patient: work?.patients,
+                        type_of_work: work?.type_of_work,
                         sets: [],
                         total_sets: 0,
                         active_sets: 0,
@@ -124,7 +143,8 @@ const AlignerPortal = () => {
 
         } catch (error) {
             console.error('Error loading cases:', error);
-            setError('Failed to load cases');
+            console.error('Error details:', error.message, error.details);
+            throw error; // Re-throw so parent catch can handle it
         }
     };
 
