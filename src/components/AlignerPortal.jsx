@@ -67,6 +67,19 @@ const AlignerPortal = () => {
                 .from('aligner_sets')
                 .select(`
                     *,
+                    work!inner (
+                        work_id,
+                        person_id,
+                        type_of_work,
+                        patients!inner (
+                            person_id,
+                            patient_id,
+                            patient_name,
+                            first_name,
+                            last_name,
+                            phone
+                        )
+                    ),
                     aligner_batches (
                         aligner_batch_id,
                         batch_sequence,
@@ -91,6 +104,8 @@ const AlignerPortal = () => {
                 if (!casesMap[set.work_id]) {
                     casesMap[set.work_id] = {
                         work_id: set.work_id,
+                        patient: set.work?.patients,
+                        type_of_work: set.work?.type_of_work,
                         sets: [],
                         total_sets: 0,
                         active_sets: 0,
@@ -288,7 +303,14 @@ const AlignerPortal = () => {
         const query = searchQuery.toLowerCase();
         return cases.filter(c => {
             const workId = c.work_id.toString();
-            return workId.includes(query);
+            const patientName = c.patient?.patient_name?.toLowerCase() || '';
+            const patientId = c.patient?.patient_id?.toLowerCase() || '';
+            const phone = c.patient?.phone?.toLowerCase() || '';
+
+            return workId.includes(query) ||
+                   patientName.includes(query) ||
+                   patientId.includes(query) ||
+                   phone.includes(query);
         });
     };
 
@@ -385,7 +407,7 @@ const AlignerPortal = () => {
                             <input
                                 type="text"
                                 className="search-input"
-                                placeholder="Search by work ID..."
+                                placeholder="Search by patient name, ID, phone, or work ID..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
@@ -414,7 +436,12 @@ const AlignerPortal = () => {
                                         >
                                             <div className="case-header">
                                                 <div className="case-patient-info">
-                                                    <h3>Work #{caseData.work_id}</h3>
+                                                    <h3>{caseData.patient?.patient_name || `Work #${caseData.work_id}`}</h3>
+                                                    {caseData.patient?.patient_id && (
+                                                        <div style={{ fontSize: '0.85rem', color: 'var(--portal-grey)', marginTop: '0.25rem' }}>
+                                                            ID: {caseData.patient.patient_id}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 {caseData.active_sets > 0 ? (
                                                     <span className="case-active-badge">Active</span>
@@ -515,7 +542,18 @@ const AlignerPortal = () => {
                         </button>
 
                         <div className="patient-header-card">
-                            <h2>Work #{selectedCase.work_id}</h2>
+                            <h2>{selectedCase.patient?.patient_name || `Work #${selectedCase.work_id}`}</h2>
+                            {selectedCase.patient && (
+                                <div style={{ marginTop: '0.5rem', fontSize: '0.95rem', color: 'var(--portal-grey)' }}>
+                                    <div><strong>Patient ID:</strong> {selectedCase.patient.patient_id}</div>
+                                    {selectedCase.patient.phone && (
+                                        <div><strong>Phone:</strong> {selectedCase.patient.phone}</div>
+                                    )}
+                                    {selectedCase.type_of_work && (
+                                        <div><strong>Treatment:</strong> {selectedCase.type_of_work}</div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Sets List */}
