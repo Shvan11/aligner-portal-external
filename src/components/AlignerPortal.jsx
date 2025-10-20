@@ -89,40 +89,49 @@ const AlignerPortal = () => {
             // Get unique work IDs
             const workIds = [...new Set(sets?.map(s => s.work_id) || [])];
 
-            // Load work and patient data separately
+            // Load work and patient data separately (avoid ambiguous relationship by joining manually)
             let workData = {};
             if (workIds.length > 0) {
                 console.log('Loading work data for work_ids:', workIds);
+
+                // Get work records
                 const { data: workRecords, error: workError } = await supabase
                     .from('work')
-                    .select(`
-                        work_id,
-                        person_id,
-                        type_of_work,
-                        patients (
-                            person_id,
-                            patient_id,
-                            patient_name,
-                            first_name,
-                            last_name,
-                            phone
-                        )
-                    `)
+                    .select('work_id, person_id, type_of_work')
                     .in('work_id', workIds);
-
-                console.log('Work query result:', { workRecords, workError });
 
                 if (workError) {
                     console.error('Error loading work data:', workError);
                 }
 
-                if (workRecords) {
-                    console.log('Work records loaded:', workRecords.length);
-                    workRecords.forEach(w => {
-                        console.log('Work record:', w);
-                        workData[w.work_id] = w;
-                    });
+                // Get unique person_ids from work records
+                const personIds = [...new Set(workRecords?.map(w => w.person_id) || [])];
+
+                // Get patient records
+                const { data: patientRecords, error: patientError } = await supabase
+                    .from('patients')
+                    .select('person_id, patient_id, patient_name, first_name, last_name, phone')
+                    .in('person_id', personIds);
+
+                if (patientError) {
+                    console.error('Error loading patient data:', patientError);
                 }
+
+                console.log('Loaded work records:', workRecords?.length, 'patient records:', patientRecords?.length);
+
+                // Create patient lookup map
+                const patientMap = {};
+                patientRecords?.forEach(p => {
+                    patientMap[p.person_id] = p;
+                });
+
+                // Combine work and patient data
+                workRecords?.forEach(w => {
+                    workData[w.work_id] = {
+                        ...w,
+                        patients: patientMap[w.person_id]
+                    };
+                });
             }
             console.log('Final workData:', workData);
 
