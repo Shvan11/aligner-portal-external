@@ -505,21 +505,21 @@ const AlignerPortal = () => {
                                             )}
 
                                             {/* Payment Summary */}
-                                            {payment && (
+                                            {activeSet && (
                                                 <div className="case-payment-summary">
                                                     <div className="case-payment-item">
                                                         <div className="case-payment-label">Total Required</div>
-                                                        <div className="case-payment-value">{activeSet.set_cost || 0} {activeSet.currency || 'USD'}</div>
+                                                        <div className="case-payment-value">{activeSet.set_cost !== null && activeSet.set_cost !== undefined ? activeSet.set_cost : 0} {activeSet.currency || 'USD'}</div>
                                                     </div>
                                                     <div className="case-payment-divider"></div>
                                                     <div className="case-payment-item">
                                                         <div className="case-payment-label">Total Paid</div>
-                                                        <div className="case-payment-value paid">{payment.total_paid || 0} {activeSet.currency || 'USD'}</div>
+                                                        <div className="case-payment-value paid">{payment?.total_paid !== null && payment?.total_paid !== undefined ? payment.total_paid : 0} {activeSet.currency || 'USD'}</div>
                                                     </div>
                                                     <div className="case-payment-divider"></div>
                                                     <div className="case-payment-item">
                                                         <div className="case-payment-label">Balance</div>
-                                                        <div className="case-payment-value balance">{payment.balance || 0} {activeSet.currency || 'USD'}</div>
+                                                        <div className="case-payment-value balance">{payment?.balance !== null && payment?.balance !== undefined ? payment.balance : (activeSet.set_cost !== null && activeSet.set_cost !== undefined ? activeSet.set_cost : 0)} {activeSet.currency || 'USD'}</div>
                                                     </div>
                                                 </div>
                                             )}
@@ -647,17 +647,17 @@ const AlignerPortal = () => {
                                                 <div className="set-payment-summary">
                                                     <div className="payment-summary-item">
                                                         <div className="payment-summary-label">Total Required</div>
-                                                        <div className="payment-summary-value">{set.set_cost || 0} {set.currency || 'USD'}</div>
+                                                        <div className="payment-summary-value">{set.set_cost !== null && set.set_cost !== undefined ? set.set_cost : 0} {set.currency || 'USD'}</div>
                                                     </div>
                                                     <div className="payment-summary-divider"></div>
                                                     <div className="payment-summary-item">
                                                         <div className="payment-summary-label">Total Paid</div>
-                                                        <div className="payment-summary-value paid">{payment.total_paid || 0} {set.currency || 'USD'}</div>
+                                                        <div className="payment-summary-value paid">{payment.total_paid !== null && payment.total_paid !== undefined ? payment.total_paid : 0} {set.currency || 'USD'}</div>
                                                     </div>
                                                     <div className="payment-summary-divider"></div>
                                                     <div className="payment-summary-item">
                                                         <div className="payment-summary-label">Balance</div>
-                                                        <div className="payment-summary-value balance">{payment.balance || 0} {set.currency || 'USD'}</div>
+                                                        <div className="payment-summary-value balance">{payment.balance !== null && payment.balance !== undefined ? payment.balance : 0} {set.currency || 'USD'}</div>
                                                     </div>
                                                     <div className="payment-summary-status">
                                                         <span className={`payment-status-badge ${payment.payment_status?.toLowerCase().replace(/\s+/g, '-') || 'unpaid'}`}>
