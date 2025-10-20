@@ -92,6 +92,7 @@ const AlignerPortal = () => {
             // Load work and patient data separately
             let workData = {};
             if (workIds.length > 0) {
+                console.log('Loading work data for work_ids:', workIds);
                 const { data: workRecords, error: workError } = await supabase
                     .from('work')
                     .select(`
@@ -109,12 +110,21 @@ const AlignerPortal = () => {
                     `)
                     .in('work_id', workIds);
 
-                if (!workError && workRecords) {
+                console.log('Work query result:', { workRecords, workError });
+
+                if (workError) {
+                    console.error('Error loading work data:', workError);
+                }
+
+                if (workRecords) {
+                    console.log('Work records loaded:', workRecords.length);
                     workRecords.forEach(w => {
+                        console.log('Work record:', w);
                         workData[w.work_id] = w;
                     });
                 }
             }
+            console.log('Final workData:', workData);
 
             // Group by work_id to create cases
             const casesMap = {};
