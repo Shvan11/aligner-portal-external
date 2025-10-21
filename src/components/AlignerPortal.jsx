@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase, authenticateDoctor, formatDate, formatDateTime } from '../lib/supabase';
+import { supabase, getDoctorEmail, formatDate, formatDateTime } from '../lib/supabase';
 
 const AlignerPortal = () => {
     // State management
@@ -29,29 +29,18 @@ const AlignerPortal = () => {
     // Load doctor authentication
     const loadDoctorAuth = async () => {
         try {
-            // First, check if we have URL parameter (for testing)
-            const params = new URLSearchParams(window.location.search);
-            const emailParam = params.get('email');
+            // Get doctor email from Cloudflare Access JWT or URL parameter
+            const email = getDoctorEmail();
 
-            let email;
-
-            if (emailParam) {
-                // Testing mode with URL parameter
-                console.log('🧪 Testing mode: Using email from URL parameter');
-                email = emailParam;
-            } else {
-                // Production mode: Authenticate via backend API (reads Cloudflare Access headers)
-                console.log('🔐 Production mode: Authenticating via backend API');
-                const doctorInfo = await authenticateDoctor();
-
-                if (!doctorInfo) {
-                    setError('Authentication failed. Please ensure you are accessing through Cloudflare Access.\n\nFor testing, add ?email=your@email.com to the URL');
-                    setLoading(false);
-                    return;
-                }
-
-                email = doctorInfo.DoctorEmail;
+            if (!email) {
+                setError('Authentication failed. No email found.\n\n' +
+                         'Production: Ensure Cloudflare Access is configured and you are authenticated.\n' +
+                         'Testing: Add ?email=your@email.com to the URL');
+                setLoading(false);
+                return;
             }
+
+            console.log('🔐 Authenticating doctor:', email);
 
             // Load doctor from Supabase
             const { data, error: queryError } = await supabase
@@ -62,7 +51,7 @@ const AlignerPortal = () => {
 
             if (queryError || !data) {
                 console.error('Doctor query error:', queryError);
-                setError(`Doctor not found: ${email}. Please contact administrator.`);
+                setError(`Doctor not found: ${email}.\n\nPlease contact administrator to add your email to the system.`);
                 setLoading(false);
                 return;
             }

@@ -16,49 +16,84 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
- * Helper function to authenticate with backend and get doctor email
- * This fetches email from Cloudflare Access via the backend API
+ * Helper function to decode JWT token (Cloudflare Access)
+ * Cloudflare Access sets a CF_Authorization cookie with user info
  */
-export async function authenticateDoctor() {
+function decodeJWT(token) {
   try {
-    // Call backend auth endpoint which reads Cloudflare Access headers
-    const response = await fetch('/api/portal/auth', {
-      credentials: 'include' // Include cookies for session
-    });
-
-    const data = await response.json();
-
-    if (data.success && data.doctor) {
-      // Store doctor info in sessionStorage for subsequent use
-      sessionStorage.setItem('doctor_email', data.doctor.DoctorEmail);
-      sessionStorage.setItem('doctor_name', data.doctor.DoctorName);
-      sessionStorage.setItem('doctor_id', data.doctor.DrID);
-
-      console.log('✅ Authenticated as:', data.doctor.DoctorEmail);
-      return data.doctor;
-    } else {
-      console.error('❌ Authentication failed:', data.error);
+    // JWT has 3 parts: header.payload.signature
+    const parts = token.split('.');
+    if (parts.length !== 3) {
       return null;
     }
+
+    // Decode the payload (base64url)
+    const payload = parts[1];
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+
+    return JSON.parse(jsonPayload);
   } catch (error) {
-    console.error('❌ Authentication error:', error);
+    console.error('Error decoding JWT:', error);
     return null;
   }
 }
 
 /**
- * Helper function to get doctor email (from sessionStorage after auth)
+ * Helper function to get cookie value by name
+ */
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) {
+    return parts.pop().split(';').shift();
+  }
+  return null;
+}
+
+/**
+ * Helper function to get doctor email from Cloudflare Access JWT
+ * For static apps on Cloudflare Pages
+ */
+export function getDoctorEmailFromCloudflare() {
+  // Check for Cloudflare Access JWT cookie
+  const cfToken = getCookie('CF_Authorization');
+
+  if (cfToken) {
+    const payload = decodeJWT(cfToken);
+    if (payload && payload.email) {
+      console.log('✅ Authenticated via Cloudflare Access:', payload.email);
+      return payload.email;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Helper function to get doctor email (supports multiple sources)
  */
 export function getDoctorEmail() {
-  // For development: check URL parameter (allows bypassing Cloudflare)
+  // Priority 1: URL parameter (for development/testing)
   const params = new URLSearchParams(window.location.search);
   const emailParam = params.get('email');
   if (emailParam) {
-    console.log('Using email from URL parameter:', emailParam);
+    console.log('🧪 Using email from URL parameter:', emailParam);
     return emailParam;
   }
 
-  // For production: Get from sessionStorage (set by authenticateDoctor)
+  // Priority 2: Cloudflare Access JWT (for production)
+  const cfEmail = getDoctorEmailFromCloudflare();
+  if (cfEmail) {
+    return cfEmail;
+  }
+
+  // Priority 3: sessionStorage (fallback)
   const storedEmail = sessionStorage.getItem('doctor_email');
   if (storedEmail) {
     return storedEmail;
