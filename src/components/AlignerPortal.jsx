@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase, getDoctorEmail, formatDate, formatDateTime } from '../lib/supabase';
+import { supabase, authenticateDoctor, formatDate, formatDateTime } from '../lib/supabase';
 
 const AlignerPortal = () => {
     // State management
@@ -29,13 +29,31 @@ const AlignerPortal = () => {
     // Load doctor authentication
     const loadDoctorAuth = async () => {
         try {
-            const email = getDoctorEmail();
-            if (!email) {
-                setError('No doctor email found. Add ?email=your@email.com to URL for testing');
-                setLoading(false);
-                return;
+            // First, check if we have URL parameter (for testing)
+            const params = new URLSearchParams(window.location.search);
+            const emailParam = params.get('email');
+
+            let email;
+
+            if (emailParam) {
+                // Testing mode with URL parameter
+                console.log('🧪 Testing mode: Using email from URL parameter');
+                email = emailParam;
+            } else {
+                // Production mode: Authenticate via backend API (reads Cloudflare Access headers)
+                console.log('🔐 Production mode: Authenticating via backend API');
+                const doctorInfo = await authenticateDoctor();
+
+                if (!doctorInfo) {
+                    setError('Authentication failed. Please ensure you are accessing through Cloudflare Access.\n\nFor testing, add ?email=your@email.com to the URL');
+                    setLoading(false);
+                    return;
+                }
+
+                email = doctorInfo.DoctorEmail;
             }
 
+            // Load doctor from Supabase
             const { data, error: queryError } = await supabase
                 .from('aligner_doctors')
                 .select('*')

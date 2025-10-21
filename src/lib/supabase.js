@@ -16,10 +16,41 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
- * Helper function to get doctor email from URL or Cloudflare Access
+ * Helper function to authenticate with backend and get doctor email
+ * This fetches email from Cloudflare Access via the backend API
+ */
+export async function authenticateDoctor() {
+  try {
+    // Call backend auth endpoint which reads Cloudflare Access headers
+    const response = await fetch('/api/portal/auth', {
+      credentials: 'include' // Include cookies for session
+    });
+
+    const data = await response.json();
+
+    if (data.success && data.doctor) {
+      // Store doctor info in sessionStorage for subsequent use
+      sessionStorage.setItem('doctor_email', data.doctor.DoctorEmail);
+      sessionStorage.setItem('doctor_name', data.doctor.DoctorName);
+      sessionStorage.setItem('doctor_id', data.doctor.DrID);
+
+      console.log('✅ Authenticated as:', data.doctor.DoctorEmail);
+      return data.doctor;
+    } else {
+      console.error('❌ Authentication failed:', data.error);
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ Authentication error:', error);
+    return null;
+  }
+}
+
+/**
+ * Helper function to get doctor email (from sessionStorage after auth)
  */
 export function getDoctorEmail() {
-  // For development: check URL parameter
+  // For development: check URL parameter (allows bypassing Cloudflare)
   const params = new URLSearchParams(window.location.search);
   const emailParam = params.get('email');
   if (emailParam) {
@@ -27,9 +58,7 @@ export function getDoctorEmail() {
     return emailParam;
   }
 
-  // For production: Cloudflare Access injects email
-  // This would be passed from server-side or via custom header
-  // For now, we'll store it in sessionStorage after auth
+  // For production: Get from sessionStorage (set by authenticateDoctor)
   const storedEmail = sessionStorage.getItem('doctor_email');
   if (storedEmail) {
     return storedEmail;
