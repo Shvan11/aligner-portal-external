@@ -1153,3 +1153,322 @@ body {
 .case-url-btn.pdf:hover {
     background: #c62828;
 }
+
+/* ===== ANNOUNCEMENTS BANNER ===== */
+.announcements-banner {
+    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+    border-left: 4px solid var(--portal-warning);
+    margin: 1rem 2rem;
+    border-radius: 8px;
+    box-shadow: var(--portal-shadow);
+    overflow: hidden;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.announcements-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.5);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.announcements-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--portal-grey-dark);
+    font-size: 0.95rem;
+}
+
+.announcements-title i {
+    color: var(--portal-warning);
+    font-size: 1.1rem;
+}
+
+.dismiss-all-btn {
+    background: none;
+    border: 1px solid var(--portal-grey);
+    color: var(--portal-grey-dark);
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.dismiss-all-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: var(--portal-grey-dark);
+}
+
+.announcements-list {
+    padding: 0;
+}
+
+.announcement-item {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    transition: background 0.2s;
+}
+
+.announcement-item:last-child {
+    border-bottom: none;
+}
+
+.announcement-item:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.announcement-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.announcement-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.announcement-item-title {
+    color: var(--portal-grey-dark);
+    font-size: 0.95rem;
+    margin: 0;
+}
+
+.announcement-dismiss-btn {
+    background: none;
+    border: none;
+    color: var(--portal-grey);
+    cursor: pointer;
+    padding: 0.25rem;
+    line-height: 1;
+    transition: color 0.2s;
+    font-size: 1rem;
+}
+
+.announcement-dismiss-btn:hover {
+    color: var(--portal-grey-dark);
+}
+
+.announcement-message {
+    color: #555;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.announcement-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 0.25rem;
+}
+
+.announcement-time {
+    font-size: 0.8rem;
+    color: var(--portal-grey);
+}
+
+.announcement-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--portal-accent);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.announcement-link:hover {
+    color: #1565C0;
+    text-decoration: underline;
+}
+
+.announcement-link i {
+    font-size: 0.75rem;
+}
+
+/* Announcement type styling */
+.announcement-info {
+    border-left-color: var(--portal-accent);
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+}
+
+.announcement-success {
+    border-left-color: var(--portal-success);
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+}
+
+.announcement-warning {
+    border-left-color: var(--portal-warning);
+    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+}
+
+.announcement-urgent {
+    border-left-color: var(--portal-error);
+    background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+}
+
+.announcements-more {
+    padding: 0.75rem 1rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--portal-grey);
+    background: rgba(255, 255, 255, 0.5);
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* ===== TOAST NOTIFICATIONS ===== */
+.toast-container {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-width: 400px;
+}
+
+.toast-notification {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 1rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    animation: slideIn 0.3s ease-out;
+    border-left: 4px solid var(--portal-primary);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.toast-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.toast-success {
+    border-left-color: var(--portal-success);
+}
+
+.toast-success .toast-icon {
+    color: var(--portal-success);
+}
+
+.toast-info {
+    border-left-color: var(--portal-accent);
+}
+
+.toast-info .toast-icon {
+    color: var(--portal-accent);
+}
+
+.toast-warning {
+    border-left-color: var(--portal-warning);
+}
+
+.toast-warning .toast-icon {
+    color: var(--portal-warning);
+}
+
+.toast-urgent {
+    border-left-color: var(--portal-error);
+}
+
+.toast-urgent .toast-icon {
+    color: var(--portal-error);
+}
+
+.toast-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.toast-content strong {
+    font-size: 0.95rem;
+    color: var(--portal-grey-dark);
+}
+
+.toast-content p {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #666;
+    line-height: 1.4;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: var(--portal-grey);
+    cursor: pointer;
+    padding: 0.25rem;
+    line-height: 1;
+    transition: color 0.2s;
+    font-size: 1rem;
+}
+
+.toast-close:hover {
+    color: var(--portal-grey-dark);
+}
+
+/* Mobile responsiveness for notifications */
+@media (max-width: 768px) {
+    .announcements-banner {
+        margin: 1rem;
+        border-radius: 6px;
+    }
+
+    .toast-container {
+        left: 1rem;
+        right: 1rem;
+        bottom: 1rem;
+        max-width: none;
+    }
+
+    .toast-notification {
+        padding: 0.875rem;
+    }
+
+    .announcement-header-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .announcement-footer {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+}
