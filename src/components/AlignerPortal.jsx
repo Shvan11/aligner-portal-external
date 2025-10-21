@@ -318,7 +318,8 @@ const AlignerPortal = () => {
                 .insert({
                     aligner_set_id: setId,
                     note_type: 'Doctor',
-                    note_text: noteText.trim()
+                    note_text: noteText.trim(),
+                    is_read: false  // Doctor notes should be unread to trigger highlighting
                 });
 
             if (insertError) throw insertError;
