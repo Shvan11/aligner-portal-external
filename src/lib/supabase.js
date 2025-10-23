@@ -84,18 +84,23 @@ export function getDoctorEmail() {
   const emailParam = params.get('email');
   if (emailParam) {
     console.log('🧪 Using email from URL parameter:', emailParam);
+    // Store in sessionStorage for navigation persistence
+    sessionStorage.setItem('doctor_email', emailParam);
     return emailParam;
   }
 
   // Priority 2: Cloudflare Access JWT (for production)
   const cfEmail = getDoctorEmailFromCloudflare();
   if (cfEmail) {
+    // Store in sessionStorage for navigation persistence
+    sessionStorage.setItem('doctor_email', cfEmail);
     return cfEmail;
   }
 
   // Priority 3: sessionStorage (fallback)
   const storedEmail = sessionStorage.getItem('doctor_email');
   if (storedEmail) {
+    console.log('📦 Using email from sessionStorage:', storedEmail);
     return storedEmail;
   }
 

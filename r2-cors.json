@@ -1,0 +1,25 @@
+[
+  {
+    "AllowedOrigins": [
+      "http://localhost:5173",
+      "http://localhost:3000",
+      "https://*.pages.dev",
+      "https://shwan-orthodontics.com",
+      "https://*.shwan-orthodontics.com"
+    ],
+    "AllowedMethods": [
+      "GET",
+      "PUT",
+      "POST",
+      "DELETE",
+      "HEAD"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ],
+    "ExposeHeaders": [
+      "ETag"
+    ],
+    "MaxAgeSeconds": 3600
+  }
+]

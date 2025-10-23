@@ -1,11 +1,14 @@
 // CaseDetail.jsx - Individual case detail with sets, batches, and notes
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase, getDoctorEmail, formatDate } from '../lib/supabase';
+import { supabase, getDoctorEmail, formatDate, isAdmin, getImpersonatedDoctorId } from '../lib/supabase';
 import PortalHeader from '../components/shared/PortalHeader';
 import AnnouncementBanner from '../components/shared/AnnouncementBanner';
 import BatchesSection from '../components/shared/BatchesSection';
 import NotesSection from '../components/shared/NotesSection';
+import SetPhotoUpload from '../components/shared/SetPhotoUpload';
+import SetPhotoGrid from '../components/shared/SetPhotoGrid';
+import FullscreenImageViewer from '../components/shared/FullscreenImageViewer';
 
 const CaseDetail = () => {
     const { workId } = useParams();
@@ -17,9 +20,13 @@ const CaseDetail = () => {
     const [sets, setSets] = useState([]);
     const [batches, setBatches] = useState({});
     const [notes, setNotes] = useState({});
+    const [photos, setPhotos] = useState({});
     const [expandedSets, setExpandedSets] = useState({});
     const [showAddNote, setShowAddNote] = useState({});
     const [noteText, setNoteText] = useState('');
+    const [selectedPhoto, setSelectedPhoto] = useState(null);
+    const [adminEmail, setAdminEmail] = useState(null);
+    const [impersonatedDoctor, setImpersonatedDoctor] = useState(null);
 
     // Load data on mount
     useEffect(() => {
@@ -36,23 +43,58 @@ const CaseDetail = () => {
                 return;
             }
 
-            // Load doctor
-            const { data: doctorData, error: doctorError } = await supabase
-                .from('aligner_doctors')
-                .select('*')
-                .eq('doctor_email', email.toLowerCase())
-                .single();
+            // Check if admin
+            if (isAdmin(email)) {
+                console.log('👑 Admin accessing case detail');
+                setAdminEmail(email);
 
-            if (doctorError || !doctorData) {
-                console.error('Doctor query error:', doctorError);
-                navigate('/');
-                return;
+                // Check if admin has selected a doctor to impersonate
+                const impersonatedDrId = getImpersonatedDoctorId();
+                if (!impersonatedDrId) {
+                    console.error('Admin must select a doctor to view cases');
+                    navigate('/');
+                    return;
+                }
+
+                // Load the impersonated doctor
+                const { data: impersonatedDoc, error: impError } = await supabase
+                    .from('aligner_doctors')
+                    .select('*')
+                    .eq('dr_id', impersonatedDrId)
+                    .single();
+
+                if (impError || !impersonatedDoc) {
+                    console.error('Impersonated doctor query error:', impError);
+                    navigate('/');
+                    return;
+                }
+
+                console.log('🎭 Admin viewing case as:', impersonatedDoc.doctor_name);
+                setImpersonatedDoctor(impersonatedDoc);
+                setDoctor(impersonatedDoc);
+
+                // Load case and sets using impersonated doctor's ID
+                await loadCaseAndSets(parseInt(workId), impersonatedDoc.dr_id);
+
+            } else {
+                // Regular doctor authentication
+                const { data: doctorData, error: doctorError } = await supabase
+                    .from('aligner_doctors')
+                    .select('*')
+                    .eq('doctor_email', email.toLowerCase())
+                    .single();
+
+                if (doctorError || !doctorData) {
+                    console.error('Doctor query error:', doctorError);
+                    navigate('/');
+                    return;
+                }
+
+                setDoctor(doctorData);
+
+                // Load case and sets
+                await loadCaseAndSets(parseInt(workId), doctorData.dr_id);
             }
-
-            setDoctor(doctorData);
-
-            // Load case and sets
-            await loadCaseAndSets(parseInt(workId), doctorData.dr_id);
 
         } catch (error) {
             console.error('Error loading data:', error);
@@ -174,6 +216,28 @@ const CaseDetail = () => {
         }
     };
 
+    // Load photos for a set (with presigned URLs)
+    const loadPhotos = async (setId) => {
+        try {
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const response = await fetch(`${supabaseUrl}/functions/v1/aligner-photo-get-urls?setId=${setId}`, {
+                headers: {
+                    'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to load photos');
+            }
+
+            const result = await response.json();
+            setPhotos(prev => ({ ...prev, [setId]: result.photos || [] }));
+
+        } catch (error) {
+            console.error('Error loading photos:', error);
+        }
+    };
+
     // Toggle set expansion
     const toggleSet = async (setId) => {
         if (expandedSets[setId]) {
@@ -184,6 +248,9 @@ const CaseDetail = () => {
             }
             if (!notes[setId]) {
                 await loadNotes(setId);
+            }
+            if (!photos[setId]) {
+                await loadPhotos(setId);
             }
             setExpandedSets(prev => ({ ...prev, [setId]: true }));
         }
@@ -298,10 +365,20 @@ const CaseDetail = () => {
 
     return (
         <div className="portal-container">
-            <PortalHeader doctor={doctor} />
+            <PortalHeader doctor={doctor} isAdmin={!!adminEmail} impersonatedDoctor={impersonatedDoctor} />
             <AnnouncementBanner doctorId={doctor?.dr_id} />
 
             <main className="portal-main">
+                {/* Admin Impersonation Indicator */}
+                {adminEmail && impersonatedDoctor && (
+                    <div className="admin-impersonation-bar" style={{ marginBottom: '1.5rem' }}>
+                        <div className="admin-impersonation-info">
+                            <i className="fas fa-user-shield"></i>
+                            <span>Admin View - Viewing case as: <strong>Dr. {impersonatedDoctor.doctor_name}</strong></span>
+                        </div>
+                    </div>
+                )}
+
                 <div className="case-detail-container">
                     <button className="back-button" onClick={backToCases}>
                         <i className="fas fa-arrow-left"></i>
@@ -431,6 +508,27 @@ const CaseDetail = () => {
                                                     />
                                                 )}
 
+                                                {/* Photos Section */}
+                                                <div className="set-section">
+                                                    <div className="section-header-row">
+                                                        <h4>
+                                                            <i className="fas fa-images"></i>
+                                                            Photos
+                                                        </h4>
+                                                        <SetPhotoUpload
+                                                            setId={set.aligner_set_id}
+                                                            doctorId={doctor.dr_id}
+                                                            onUploadComplete={() => loadPhotos(set.aligner_set_id)}
+                                                        />
+                                                    </div>
+                                                    <SetPhotoGrid
+                                                        photos={photos[set.aligner_set_id] || []}
+                                                        onPhotoClick={(photo) => setSelectedPhoto(photo)}
+                                                        onPhotoDelete={() => loadPhotos(set.aligner_set_id)}
+                                                        doctorId={doctor.dr_id}
+                                                    />
+                                                </div>
+
                                                 {/* Notes with EDITABLE Add Note */}
                                                 <NotesSection
                                                     setId={set.aligner_set_id}
@@ -451,6 +549,14 @@ const CaseDetail = () => {
                     )}
                 </div>
             </main>
+
+            {/* Fullscreen Photo Viewer */}
+            {selectedPhoto && (
+                <FullscreenImageViewer
+                    photo={selectedPhoto}
+                    onClose={() => setSelectedPhoto(null)}
+                />
+            )}
         </div>
     );
 };

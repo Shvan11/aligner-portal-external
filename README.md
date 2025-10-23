@@ -119,12 +119,21 @@ npm run preview
 aligner-portal-external/
 ├── src/
 │   ├── components/
-│   │   └── AlignerPortal.jsx    # Main portal component
+│   │   ├── shared/               # Shared components
+│   │   │   ├── PortalHeader.jsx
+│   │   │   ├── SetPhotoUpload.jsx
+│   │   │   ├── SetPhotoGrid.jsx
+│   │   │   └── ...
+│   │   └── pages/                # Page components
+│   │       ├── Dashboard.jsx     # Main dashboard
+│   │       └── CaseDetail.jsx    # Case detail view
 │   ├── lib/
-│   │   └── supabase.js          # Supabase client
-│   ├── App.jsx                   # Root component
+│   │   └── supabase.js           # Supabase client
+│   ├── App.jsx                   # Root component with routing
 │   ├── main.jsx                  # Entry point
 │   └── styles.css                # Portal styles
+├── docs/
+│   └── R2_STORAGE_SETUP.md      # Photo upload setup guide
 ├── index.html                    # HTML template
 ├── vite.config.js                # Build configuration
 ├── package.json
@@ -156,13 +165,24 @@ aligner-portal-external/
 - Run initial migration: `node ../services/sync/initial-migration.js`
 - Check sync status: `curl http://your-server/api/sync/status`
 
+### Photo Upload Issues
+- See `docs/R2_STORAGE_SETUP.md` for complete photo upload configuration guide
+
 ---
 
 ## 💰 Costs
 
 - **Cloudflare Pages**: FREE (unlimited bandwidth)
 - **Supabase**: FREE (500MB database)
-- **Total**: $0/month
+- **Cloudflare R2**: ~$0.04-0.10/month (pay-as-you-go)
+- **Total**: ~$0.04-0.10/month
+
+---
+
+## 📚 Documentation
+
+- **Photo Upload Setup**: `docs/R2_STORAGE_SETUP.md`
+- **Migration Guide**: `/docs/MIGRATION_GUIDE.md` (in parent folder)
 
 ---
 

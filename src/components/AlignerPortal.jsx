@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, getDoctorEmail, formatDate, formatDateTime } from '../lib/supabase';
+import SetPhotoUpload from './shared/SetPhotoUpload';
+import SetPhotoGrid from './shared/SetPhotoGrid';
+import FullscreenImageViewer from './shared/FullscreenImageViewer';
 
 const AlignerPortal = () => {
     // State management
@@ -11,10 +14,12 @@ const AlignerPortal = () => {
     const [sets, setSets] = useState([]);
     const [batches, setBatches] = useState({});
     const [notes, setNotes] = useState({});
+    const [photos, setPhotos] = useState({});
     const [expandedSets, setExpandedSets] = useState({});
     const [searchQuery, setSearchQuery] = useState('');
     const [showAddNote, setShowAddNote] = useState({});
     const [noteText, setNoteText] = useState('');
+    const [selectedPhoto, setSelectedPhoto] = useState(null);
 
     // Notification state
     const [announcements, setAnnouncements] = useState([]);
@@ -394,6 +399,32 @@ const AlignerPortal = () => {
         }
     };
 
+    // Load photos for a set
+    const loadPhotos = async (setId) => {
+        try {
+            const response = await fetch(`/api/aligner-sets/${setId}/photos`);
+
+            if (!response.ok) {
+                throw new Error('Failed to load photos');
+            }
+
+            const data = await response.json();
+            setPhotos(prev => ({ ...prev, [setId]: data.photos || [] }));
+
+        } catch (error) {
+            console.error('Error loading photos:', error);
+            // Don't alert - just log error
+        }
+    };
+
+    // Handle photo deletion
+    const handlePhotoDelete = async (setId, photoId) => {
+        setPhotos(prev => ({
+            ...prev,
+            [setId]: (prev[setId] || []).filter(p => p.photo_id !== photoId)
+        }));
+    };
+
     // Toggle set expansion
     const toggleSet = async (setId) => {
         if (expandedSets[setId]) {
@@ -404,6 +435,9 @@ const AlignerPortal = () => {
             }
             if (!notes[setId]) {
                 await loadNotes(setId);
+            }
+            if (!photos[setId]) {
+                await loadPhotos(setId);
             }
             setExpandedSets(prev => ({ ...prev, [setId]: true }));
         }
@@ -967,6 +1001,24 @@ const AlignerPortal = () => {
                                                         onAddNote={addNote}
                                                         formatDateTime={formatDateTime}
                                                     />
+
+                                                    {/* Photos Section */}
+                                                    <div className="photos-section">
+                                                        <div className="photos-header">
+                                                            <h4><i className="fas fa-images"></i> Photos</h4>
+                                                            <SetPhotoUpload
+                                                                setId={set.aligner_set_id}
+                                                                doctorId={doctor.dr_id}
+                                                                onUploadComplete={() => loadPhotos(set.aligner_set_id)}
+                                                            />
+                                                        </div>
+                                                        <SetPhotoGrid
+                                                            photos={photos[set.aligner_set_id] || []}
+                                                            onPhotoClick={setSelectedPhoto}
+                                                            onPhotoDelete={(photoId) => handlePhotoDelete(set.aligner_set_id, photoId)}
+                                                            doctorId={doctor.dr_id}
+                                                        />
+                                                    </div>
                                                 </>
                                             )}
                                         </div>
@@ -977,6 +1029,14 @@ const AlignerPortal = () => {
                     </div>
                 )}
             </main>
+
+            {/* Fullscreen Image Viewer */}
+            {selectedPhoto && (
+                <FullscreenImageViewer
+                    photo={selectedPhoto}
+                    onClose={() => setSelectedPhoto(null)}
+                />
+            )}
         </div>
     );
 };
