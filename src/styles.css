@@ -1472,3 +1472,149 @@ body {
         gap: 0.5rem;
     }
 }
+
+/* ===== ADMIN COMPONENTS ===== */
+.admin-doctor-selector {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: var(--portal-shadow);
+    max-width: 800px;
+    margin: 2rem auto;
+}
+
+.admin-selector-loading {
+    text-align: center;
+    padding: 3rem;
+}
+
+.admin-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.admin-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: var(--portal-primary);
+    margin-bottom: 0.5rem;
+}
+
+.admin-title i {
+    font-size: 2rem;
+}
+
+.admin-title h2 {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 600;
+}
+
+.admin-description {
+    color: var(--portal-grey);
+    font-size: 0.95rem;
+    margin: 0;
+}
+
+.doctor-selector-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.selector-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--portal-grey-dark);
+    font-size: 1rem;
+}
+
+.selector-label i {
+    color: var(--portal-primary);
+}
+
+.doctor-select {
+    padding: 0.875rem 1rem;
+    border: 2px solid var(--portal-grey-light);
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: inherit;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.doctor-select:hover {
+    border-color: var(--portal-primary-light);
+}
+
+.doctor-select:focus {
+    outline: none;
+    border-color: var(--portal-primary);
+    box-shadow: 0 0 0 3px rgba(0, 137, 123, 0.1);
+}
+
+.admin-impersonation-bar {
+    background: linear-gradient(135deg, #FF6F00 0%, #F57C00 100%);
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--portal-shadow);
+}
+
+.admin-impersonation-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+}
+
+.admin-impersonation-info i {
+    font-size: 1.25rem;
+}
+
+.admin-impersonation-bar .admin-doctor-selector {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 1rem;
+    margin: 0;
+    box-shadow: none;
+}
+
+.admin-impersonation-bar .admin-header {
+    display: none;
+}
+
+.admin-impersonation-bar .selector-label {
+    font-size: 0.875rem;
+    color: var(--portal-grey-dark);
+}
+
+.admin-impersonation-bar .doctor-select {
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+}
+
+@media (max-width: 768px) {
+    .admin-doctor-selector {
+        padding: 1.5rem 1rem;
+        margin: 1rem;
+    }
+
+    .admin-title h2 {
+        font-size: 1.5rem;
+    }
+
+    .admin-impersonation-bar {
+        padding: 1rem;
+    }
+
+    .admin-impersonation-info {
+        font-size: 0.875rem;
+    }
+}

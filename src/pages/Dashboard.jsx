@@ -1,9 +1,10 @@
 // Dashboard.jsx - External Portal Dashboard with React Router
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase, getDoctorEmail } from '../lib/supabase';
+import { supabase, getDoctorEmail, isAdmin, getImpersonatedDoctorId } from '../lib/supabase';
 import PortalHeader from '../components/shared/PortalHeader';
 import AnnouncementBanner from '../components/shared/AnnouncementBanner';
+import AdminDoctorSelector from '../components/shared/AdminDoctorSelector';
 
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -12,6 +13,8 @@ const Dashboard = () => {
     const [doctor, setDoctor] = useState(null);
     const [cases, setCases] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [adminEmail, setAdminEmail] = useState(null);
+    const [impersonatedDoctor, setImpersonatedDoctor] = useState(null);
 
     // Load doctor info on mount
     useEffect(() => {
@@ -34,7 +37,34 @@ const Dashboard = () => {
 
             console.log('🔐 Authenticating doctor:', email);
 
-            // Load doctor from Supabase
+            // Check if admin
+            if (isAdmin(email)) {
+                console.log('👑 Admin logged in');
+                setAdminEmail(email);
+
+                // Check if admin has previously selected a doctor to impersonate
+                const impersonatedDrId = getImpersonatedDoctorId();
+                if (impersonatedDrId) {
+                    // Load the impersonated doctor
+                    const { data: impersonatedDoc, error: impError } = await supabase
+                        .from('aligner_doctors')
+                        .select('*')
+                        .eq('dr_id', impersonatedDrId)
+                        .single();
+
+                    if (!impError && impersonatedDoc) {
+                        console.log('🎭 Restoring impersonation for:', impersonatedDoc.doctor_name);
+                        setImpersonatedDoctor(impersonatedDoc);
+                        setDoctor(impersonatedDoc);
+                        await loadCases(impersonatedDoc.dr_id);
+                    }
+                }
+
+                setLoading(false);
+                return;
+            }
+
+            // Regular doctor authentication
             const { data, error: queryError } = await supabase
                 .from('aligner_doctors')
                 .select('*')
@@ -54,6 +84,26 @@ const Dashboard = () => {
         } catch (error) {
             console.error('Error loading doctor auth:', error);
             setError(`Failed to authenticate: ${error.message}. Please try again.`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Handle admin doctor selection
+    const handleAdminDoctorSelect = async (selectedDoctor) => {
+        if (!selectedDoctor) {
+            setImpersonatedDoctor(null);
+            setDoctor(null);
+            setCases([]);
+            return;
+        }
+
+        console.log('🎭 Admin impersonating:', selectedDoctor.doctor_name);
+        setImpersonatedDoctor(selectedDoctor);
+        setDoctor(selectedDoctor);
+        setLoading(true);
+        try {
+            await loadCases(selectedDoctor.dr_id);
         } finally {
             setLoading(false);
         }
@@ -232,10 +282,29 @@ const Dashboard = () => {
 
     return (
         <div className="portal-container">
-            <PortalHeader doctor={doctor} />
+            <PortalHeader doctor={doctor} isAdmin={!!adminEmail} impersonatedDoctor={impersonatedDoctor} />
             <AnnouncementBanner doctorId={doctor?.dr_id} />
 
             <main className="portal-main">
+                {/* Admin Doctor Selector */}
+                {adminEmail && !impersonatedDoctor && (
+                    <AdminDoctorSelector onDoctorSelect={handleAdminDoctorSelect} />
+                )}
+
+                {/* Admin Impersonation Bar */}
+                {adminEmail && impersonatedDoctor && (
+                    <div className="admin-impersonation-bar">
+                        <div className="admin-impersonation-info">
+                            <i className="fas fa-user-shield"></i>
+                            <span>Admin View - Viewing as: <strong>Dr. {impersonatedDoctor.doctor_name}</strong></span>
+                        </div>
+                        <AdminDoctorSelector onDoctorSelect={handleAdminDoctorSelect} />
+                    </div>
+                )}
+
+                {/* Show cases only if doctor is selected (admin or regular) */}
+                {doctor && (
+                <>
                 <div className="dashboard-header">
                     <h2 className="dashboard-title">My Cases</h2>
                 </div>
@@ -391,6 +460,8 @@ const Dashboard = () => {
                         })}
                     </div>
                 )}
+                </>
+            )}
             </main>
         </div>
     );

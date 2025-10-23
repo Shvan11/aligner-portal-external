@@ -136,3 +136,25 @@ export function formatDateTime(dateString) {
 export function formatPatientName(caseData) {
   return caseData.patient_name || `${caseData.first_name || ''} ${caseData.last_name || ''}`.trim();
 }
+
+/**
+ * Check if current user is admin
+ */
+export function isAdmin(email) {
+  return email?.toLowerCase() === 'shwan.orthodontics@gmail.com';
+}
+
+/**
+ * Get impersonated doctor ID from sessionStorage (admin only)
+ */
+export function getImpersonatedDoctorId() {
+  const doctorId = sessionStorage.getItem('admin_impersonated_doctor_id');
+  return doctorId ? parseInt(doctorId) : null;
+}
+
+/**
+ * Clear impersonation state
+ */
+export function clearImpersonation() {
+  sessionStorage.removeItem('admin_impersonated_doctor_id');
+}
