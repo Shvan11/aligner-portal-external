@@ -45,13 +45,11 @@ const CaseDetail = () => {
 
             // Check if admin
             if (isAdmin(email)) {
-                console.log('👑 Admin accessing case detail');
                 setAdminEmail(email);
 
                 // Check if admin has selected a doctor to impersonate
                 const impersonatedDrId = getImpersonatedDoctorId();
                 if (!impersonatedDrId) {
-                    console.error('Admin must select a doctor to view cases');
                     navigate('/');
                     return;
                 }
@@ -64,12 +62,10 @@ const CaseDetail = () => {
                     .single();
 
                 if (impError || !impersonatedDoc) {
-                    console.error('Impersonated doctor query error:', impError);
                     navigate('/');
                     return;
                 }
 
-                console.log('🎭 Admin viewing case as:', impersonatedDoc.doctor_name);
                 setImpersonatedDoctor(impersonatedDoc);
                 setDoctor(impersonatedDoc);
 
@@ -85,7 +81,6 @@ const CaseDetail = () => {
                     .single();
 
                 if (doctorError || !doctorData) {
-                    console.error('Doctor query error:', doctorError);
                     navigate('/');
                     return;
                 }
@@ -97,7 +92,7 @@ const CaseDetail = () => {
             }
 
         } catch (error) {
-            console.error('Error loading data:', error);
+            // Error loading data
         } finally {
             setLoading(false);
         }
@@ -114,7 +109,6 @@ const CaseDetail = () => {
                 .single();
 
             if (workError) {
-                console.error('Error loading work:', workError);
                 navigate('/');
                 return;
             }
@@ -125,10 +119,6 @@ const CaseDetail = () => {
                 .select('person_id, patient_id, patient_name, first_name, last_name, phone')
                 .eq('person_id', workData.person_id)
                 .single();
-
-            if (patientError) {
-                console.error('Error loading patient:', patientError);
-            }
 
             // Set case data
             setSelectedCase({
@@ -141,7 +131,7 @@ const CaseDetail = () => {
             await loadSets(workIdParam, drId);
 
         } catch (error) {
-            console.error('Error loading case:', error);
+            // Error loading case
         }
     };
 
@@ -176,7 +166,7 @@ const CaseDetail = () => {
             }
 
         } catch (error) {
-            console.error('Error loading sets:', error);
+            // Error loading sets
         }
     };
 
@@ -194,7 +184,7 @@ const CaseDetail = () => {
             setBatches(prev => ({ ...prev, [setId]: data || [] }));
 
         } catch (error) {
-            console.error('Error loading batches:', error);
+            // Error loading batches
         }
     };
 
@@ -212,7 +202,7 @@ const CaseDetail = () => {
             setNotes(prev => ({ ...prev, [setId]: data || [] }));
 
         } catch (error) {
-            console.error('Error loading notes:', error);
+            // Error loading notes
         }
     };
 
@@ -234,7 +224,7 @@ const CaseDetail = () => {
             setPhotos(prev => ({ ...prev, [setId]: result.photos || [] }));
 
         } catch (error) {
-            console.error('Error loading photos:', error);
+            // Error loading photos
         }
     };
 
@@ -278,7 +268,6 @@ const CaseDetail = () => {
             alert('Days per aligner updated successfully');
 
         } catch (error) {
-            console.error('Error updating days:', error);
             alert('Failed to update days per aligner');
         }
     };
@@ -291,12 +280,6 @@ const CaseDetail = () => {
         }
 
         try {
-            console.log('📝 [EXTERNAL] Creating doctor note:', {
-                setId,
-                noteText: noteText.trim(),
-                is_read: false
-            });
-
             const { data, error: insertError } = await supabase
                 .from('aligner_notes')
                 .insert({
@@ -309,14 +292,11 @@ const CaseDetail = () => {
 
             if (insertError) throw insertError;
 
-            console.log('✅ [EXTERNAL] Note created successfully:', data);
-
             setNoteText('');
             setShowAddNote(prev => ({ ...prev, [setId]: false }));
             await loadNotes(setId);
 
         } catch (error) {
-            console.error('❌ [EXTERNAL] Error adding note:', error);
             alert('Failed to add note');
         }
     };

@@ -35,11 +35,8 @@ const Dashboard = () => {
                 return;
             }
 
-            console.log('🔐 Authenticating doctor:', email);
-
             // Check if admin
             if (isAdmin(email)) {
-                console.log('👑 Admin logged in');
                 setAdminEmail(email);
 
                 // Check if admin has previously selected a doctor to impersonate
@@ -53,7 +50,6 @@ const Dashboard = () => {
                         .single();
 
                     if (!impError && impersonatedDoc) {
-                        console.log('🎭 Restoring impersonation for:', impersonatedDoc.doctor_name);
                         setImpersonatedDoctor(impersonatedDoc);
                         setDoctor(impersonatedDoc);
                         await loadCases(impersonatedDoc.dr_id);
@@ -72,7 +68,6 @@ const Dashboard = () => {
                 .single();
 
             if (queryError || !data) {
-                console.error('Doctor query error:', queryError);
                 setError(`Doctor not found: ${email}.\n\nPlease contact administrator to add your email to the system.`);
                 setLoading(false);
                 return;
@@ -82,7 +77,6 @@ const Dashboard = () => {
             await loadCases(data.dr_id);
 
         } catch (error) {
-            console.error('Error loading doctor auth:', error);
             setError(`Failed to authenticate: ${error.message}. Please try again.`);
         } finally {
             setLoading(false);
@@ -98,7 +92,6 @@ const Dashboard = () => {
             return;
         }
 
-        console.log('🎭 Admin impersonating:', selectedDoctor.doctor_name);
         setImpersonatedDoctor(selectedDoctor);
         setDoctor(selectedDoctor);
         setLoading(true);
@@ -141,17 +134,11 @@ const Dashboard = () => {
             // Load work and patient data separately (avoid ambiguous relationship by joining manually)
             let workData = {};
             if (workIds.length > 0) {
-                console.log('Loading work data for work_ids:', workIds);
-
                 // Get work records
                 const { data: workRecords, error: workError } = await supabase
                     .from('work')
                     .select('work_id, person_id, type_of_work')
                     .in('work_id', workIds);
-
-                if (workError) {
-                    console.error('Error loading work data:', workError);
-                }
 
                 // Get unique person_ids from work records
                 const personIds = [...new Set(workRecords?.map(w => w.person_id) || [])];
@@ -161,12 +148,6 @@ const Dashboard = () => {
                     .from('patients')
                     .select('person_id, patient_id, patient_name, first_name, last_name, phone')
                     .in('person_id', personIds);
-
-                if (patientError) {
-                    console.error('Error loading patient data:', patientError);
-                }
-
-                console.log('Loaded work records:', workRecords?.length, 'patient records:', patientRecords?.length);
 
                 // Create patient lookup map
                 const patientMap = {};
@@ -182,7 +163,6 @@ const Dashboard = () => {
                     };
                 });
             }
-            console.log('Final workData:', workData);
 
             // Group by work_id to create cases
             const casesMap = {};
@@ -210,8 +190,6 @@ const Dashboard = () => {
             setCases(Object.values(casesMap));
 
         } catch (error) {
-            console.error('Error loading cases:', error);
-            console.error('Error details:', error.message, error.details);
             throw error; // Re-throw so parent catch can handle it
         }
     };

@@ -25,14 +25,11 @@ const SetPhotoGrid = ({ photos, onPhotoClick, onPhotoDelete, doctorId }) => {
                 throw new Error(errorData.error || 'Failed to delete photo');
             }
 
-            console.log('✅ Photo deleted');
-
             // Notify parent
             if (onPhotoDelete) {
                 onPhotoDelete(photo.photo_id);
             }
         } catch (error) {
-            console.error('❌ Delete failed:', error);
             alert(`Delete failed: ${error.message}`);
         }
     };

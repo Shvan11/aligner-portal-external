@@ -27,7 +27,7 @@ const AdminDoctorSelector = ({ onDoctorSelect }) => {
             if (error) throw error;
             setDoctors(data || []);
         } catch (error) {
-            console.error('Error loading doctors:', error);
+            // Error loading doctors
         } finally {
             setLoading(false);
         }
