@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, getDoctorEmail, isAdmin, getImpersonatedDoctorId } from '../lib/supabase';
+import { fetchAlignerSets, fetchWorkWithPatients } from '../lib/api';
 import PortalHeader from '../components/shared/PortalHeader';
 import AnnouncementBanner from '../components/shared/AnnouncementBanner';
 import AdminDoctorSelector from '../components/shared/AdminDoctorSelector';
@@ -105,68 +106,18 @@ const Dashboard = () => {
     // Load all cases for this doctor
     const loadCases = async (drId) => {
         try {
-            // Get all sets for this doctor with related data
-            const { data: sets, error: queryError } = await supabase
-                .from('aligner_sets')
-                .select(`
-                    *,
-                    aligner_batches (
-                        aligner_batch_id,
-                        batch_sequence,
-                        delivered_to_patient_date,
-                        upper_aligner_count,
-                        lower_aligner_count
-                    ),
-                    aligner_set_payments (
-                        total_paid,
-                        balance,
-                        payment_status
-                    )
-                `)
-                .eq('aligner_dr_id', drId)
-                .order('creation_date', { ascending: false });
-
-            if (queryError) throw queryError;
+            // Get all sets for this doctor with related data (using API utility)
+            const sets = await fetchAlignerSets(drId);
 
             // Get unique work IDs
-            const workIds = [...new Set(sets?.map(s => s.work_id) || [])];
+            const workIds = [...new Set(sets.map(s => s.work_id))];
 
-            // Load work and patient data separately (avoid ambiguous relationship by joining manually)
-            let workData = {};
-            if (workIds.length > 0) {
-                // Get work records
-                const { data: workRecords, error: workError } = await supabase
-                    .from('work')
-                    .select('work_id, person_id, type_of_work')
-                    .in('work_id', workIds);
-
-                // Get unique person_ids from work records
-                const personIds = [...new Set(workRecords?.map(w => w.person_id) || [])];
-
-                // Get patient records
-                const { data: patientRecords, error: patientError } = await supabase
-                    .from('patients')
-                    .select('person_id, patient_id, patient_name, first_name, last_name, phone')
-                    .in('person_id', personIds);
-
-                // Create patient lookup map
-                const patientMap = {};
-                patientRecords?.forEach(p => {
-                    patientMap[p.person_id] = p;
-                });
-
-                // Combine work and patient data
-                workRecords?.forEach(w => {
-                    workData[w.work_id] = {
-                        ...w,
-                        patients: patientMap[w.person_id]
-                    };
-                });
-            }
+            // Load work and patient data (using API utility)
+            const workData = await fetchWorkWithPatients(workIds);
 
             // Group by work_id to create cases
             const casesMap = {};
-            sets?.forEach(set => {
+            sets.forEach(set => {
                 if (!casesMap[set.work_id]) {
                     const work = workData[set.work_id];
                     casesMap[set.work_id] = {

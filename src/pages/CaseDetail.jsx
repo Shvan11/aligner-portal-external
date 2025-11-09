@@ -2,6 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase, getDoctorEmail, formatDate, isAdmin, getImpersonatedDoctorId } from '../lib/supabase';
+import { fetchWork, fetchPatient, fetchSetsForWork, updateBatchDays } from '../lib/api';
+import { useBatches } from '../hooks/useBatches';
+import { useNotes } from '../hooks/useNotes';
+import { usePhotos } from '../hooks/usePhotos';
 import PortalHeader from '../components/shared/PortalHeader';
 import AnnouncementBanner from '../components/shared/AnnouncementBanner';
 import BatchesSection from '../components/shared/BatchesSection';
@@ -14,13 +18,15 @@ const CaseDetail = () => {
     const { workId } = useParams();
     const navigate = useNavigate();
 
+    // Use custom hooks for data management
+    const { batches, loadBatches } = useBatches();
+    const { notes, loadNotes, addNote: addNoteHook } = useNotes();
+    const { photos, loadPhotos } = usePhotos();
+
     const [loading, setLoading] = useState(true);
     const [doctor, setDoctor] = useState(null);
     const [selectedCase, setSelectedCase] = useState(null);
     const [sets, setSets] = useState([]);
-    const [batches, setBatches] = useState({});
-    const [notes, setNotes] = useState({});
-    const [photos, setPhotos] = useState({});
     const [expandedSets, setExpandedSets] = useState({});
     const [showAddNote, setShowAddNote] = useState({});
     const [noteText, setNoteText] = useState('');
@@ -101,24 +107,16 @@ const CaseDetail = () => {
     // Load case and sets data
     const loadCaseAndSets = async (workIdParam, drId) => {
         try {
-            // Load work data
-            const { data: workData, error: workError } = await supabase
-                .from('work')
-                .select('work_id, person_id, type_of_work')
-                .eq('work_id', workIdParam)
-                .single();
+            // Load work data (using API utility)
+            const workData = await fetchWork(workIdParam);
 
-            if (workError) {
+            if (!workData) {
                 navigate('/');
                 return;
             }
 
-            // Load patient data
-            const { data: patientData, error: patientError } = await supabase
-                .from('patients')
-                .select('person_id, patient_id, patient_name, first_name, last_name, phone')
-                .eq('person_id', workData.person_id)
-                .single();
+            // Load patient data (using API utility)
+            const patientData = await fetchPatient(workData.person_id);
 
             // Set case data
             setSelectedCase({
@@ -138,27 +136,13 @@ const CaseDetail = () => {
     // Load sets for a specific case
     const loadSets = async (workIdParam, drId) => {
         try {
-            const { data, error: queryError } = await supabase
-                .from('aligner_sets')
-                .select(`
-                    *,
-                    aligner_batches (count),
-                    aligner_set_payments (
-                        total_paid,
-                        balance,
-                        payment_status
-                    )
-                `)
-                .eq('work_id', workIdParam)
-                .eq('aligner_dr_id', drId)
-                .order('set_sequence', { ascending: true });
+            // Fetch sets using API utility
+            const data = await fetchSetsForWork(workIdParam, drId);
 
-            if (queryError) throw queryError;
-
-            setSets(data || []);
+            setSets(data);
 
             // Auto-expand the active set
-            const activeSet = data?.find(set => set.is_active);
+            const activeSet = data.find(set => set.is_active);
             if (activeSet) {
                 await loadBatches(activeSet.aligner_set_id);
                 await loadNotes(activeSet.aligner_set_id);
@@ -170,63 +154,7 @@ const CaseDetail = () => {
         }
     };
 
-    // Load batches for a set
-    const loadBatches = async (setId) => {
-        try {
-            const { data, error: queryError } = await supabase
-                .from('aligner_batches')
-                .select('*')
-                .eq('aligner_set_id', setId)
-                .order('batch_sequence', { ascending: true });
-
-            if (queryError) throw queryError;
-
-            setBatches(prev => ({ ...prev, [setId]: data || [] }));
-
-        } catch (error) {
-            // Error loading batches
-        }
-    };
-
-    // Load notes for a set
-    const loadNotes = async (setId) => {
-        try {
-            const { data, error: queryError } = await supabase
-                .from('aligner_notes')
-                .select('*')
-                .eq('aligner_set_id', setId)
-                .order('created_at', { ascending: false });
-
-            if (queryError) throw queryError;
-
-            setNotes(prev => ({ ...prev, [setId]: data || [] }));
-
-        } catch (error) {
-            // Error loading notes
-        }
-    };
-
-    // Load photos for a set (with presigned URLs)
-    const loadPhotos = async (setId) => {
-        try {
-            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-            const response = await fetch(`${supabaseUrl}/functions/v1/aligner-photo-get-urls?setId=${setId}`, {
-                headers: {
-                    'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to load photos');
-            }
-
-            const result = await response.json();
-            setPhotos(prev => ({ ...prev, [setId]: result.photos || [] }));
-
-        } catch (error) {
-            // Error loading photos
-        }
-    };
+    // Note: loadBatches, loadNotes, and loadPhotos are now provided by custom hooks
 
     // Toggle set expansion
     const toggleSet = async (setId) => {
@@ -249,14 +177,10 @@ const CaseDetail = () => {
     // Update days per aligner (EDITABLE!)
     const updateDays = async (batchId, newDays) => {
         try {
-            const { error: updateError } = await supabase
-                .from('aligner_batches')
-                .update({ days: parseInt(newDays) })
-                .eq('aligner_batch_id', batchId);
+            // Update using API utility
+            await updateBatchDays(batchId, newDays);
 
-            if (updateError) throw updateError;
-
-            // Reload batches to get updated values
+            // Find which set this batch belongs to and reload
             const batch = Object.values(batches)
                 .flat()
                 .find(b => b.aligner_batch_id === batchId);
@@ -280,21 +204,11 @@ const CaseDetail = () => {
         }
 
         try {
-            const { data, error: insertError } = await supabase
-                .from('aligner_notes')
-                .insert({
-                    aligner_set_id: setId,
-                    note_type: 'Doctor',
-                    note_text: noteText.trim(),
-                    is_read: false  // Doctor notes should be unread to trigger highlighting
-                })
-                .select();
-
-            if (insertError) throw insertError;
+            // Use custom hook to add note
+            await addNoteHook(setId, noteText, 'Doctor');
 
             setNoteText('');
             setShowAddNote(prev => ({ ...prev, [setId]: false }));
-            await loadNotes(setId);
 
         } catch (error) {
             alert('Failed to add note');
