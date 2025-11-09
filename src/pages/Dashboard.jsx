@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, getDoctorEmail, isAdmin, getImpersonatedDoctorId } from '../lib/supabase';
+import { fetchAlignerSets, fetchWorkWithPatients } from '../lib/api';
 import PortalHeader from '../components/shared/PortalHeader';
 import AnnouncementBanner from '../components/shared/AnnouncementBanner';
 import AdminDoctorSelector from '../components/shared/AdminDoctorSelector';
@@ -35,11 +36,8 @@ const Dashboard = () => {
                 return;
             }
 
-            console.log('🔐 Authenticating doctor:', email);
-
             // Check if admin
             if (isAdmin(email)) {
-                console.log('👑 Admin logged in');
                 setAdminEmail(email);
 
                 // Check if admin has previously selected a doctor to impersonate
@@ -53,7 +51,6 @@ const Dashboard = () => {
                         .single();
 
                     if (!impError && impersonatedDoc) {
-                        console.log('🎭 Restoring impersonation for:', impersonatedDoc.doctor_name);
                         setImpersonatedDoctor(impersonatedDoc);
                         setDoctor(impersonatedDoc);
                         await loadCases(impersonatedDoc.dr_id);
@@ -72,7 +69,6 @@ const Dashboard = () => {
                 .single();
 
             if (queryError || !data) {
-                console.error('Doctor query error:', queryError);
                 setError(`Doctor not found: ${email}.\n\nPlease contact administrator to add your email to the system.`);
                 setLoading(false);
                 return;
@@ -82,7 +78,6 @@ const Dashboard = () => {
             await loadCases(data.dr_id);
 
         } catch (error) {
-            console.error('Error loading doctor auth:', error);
             setError(`Failed to authenticate: ${error.message}. Please try again.`);
         } finally {
             setLoading(false);
@@ -98,7 +93,6 @@ const Dashboard = () => {
             return;
         }
 
-        console.log('🎭 Admin impersonating:', selectedDoctor.doctor_name);
         setImpersonatedDoctor(selectedDoctor);
         setDoctor(selectedDoctor);
         setLoading(true);
@@ -112,81 +106,18 @@ const Dashboard = () => {
     // Load all cases for this doctor
     const loadCases = async (drId) => {
         try {
-            // Get all sets for this doctor with related data
-            const { data: sets, error: queryError } = await supabase
-                .from('aligner_sets')
-                .select(`
-                    *,
-                    aligner_batches (
-                        aligner_batch_id,
-                        batch_sequence,
-                        delivered_to_patient_date,
-                        upper_aligner_count,
-                        lower_aligner_count
-                    ),
-                    aligner_set_payments (
-                        total_paid,
-                        balance,
-                        payment_status
-                    )
-                `)
-                .eq('aligner_dr_id', drId)
-                .order('creation_date', { ascending: false });
-
-            if (queryError) throw queryError;
+            // Get all sets for this doctor with related data (using API utility)
+            const sets = await fetchAlignerSets(drId);
 
             // Get unique work IDs
-            const workIds = [...new Set(sets?.map(s => s.work_id) || [])];
+            const workIds = [...new Set(sets.map(s => s.work_id))];
 
-            // Load work and patient data separately (avoid ambiguous relationship by joining manually)
-            let workData = {};
-            if (workIds.length > 0) {
-                console.log('Loading work data for work_ids:', workIds);
-
-                // Get work records
-                const { data: workRecords, error: workError } = await supabase
-                    .from('work')
-                    .select('work_id, person_id, type_of_work')
-                    .in('work_id', workIds);
-
-                if (workError) {
-                    console.error('Error loading work data:', workError);
-                }
-
-                // Get unique person_ids from work records
-                const personIds = [...new Set(workRecords?.map(w => w.person_id) || [])];
-
-                // Get patient records
-                const { data: patientRecords, error: patientError } = await supabase
-                    .from('patients')
-                    .select('person_id, patient_id, patient_name, first_name, last_name, phone')
-                    .in('person_id', personIds);
-
-                if (patientError) {
-                    console.error('Error loading patient data:', patientError);
-                }
-
-                console.log('Loaded work records:', workRecords?.length, 'patient records:', patientRecords?.length);
-
-                // Create patient lookup map
-                const patientMap = {};
-                patientRecords?.forEach(p => {
-                    patientMap[p.person_id] = p;
-                });
-
-                // Combine work and patient data
-                workRecords?.forEach(w => {
-                    workData[w.work_id] = {
-                        ...w,
-                        patients: patientMap[w.person_id]
-                    };
-                });
-            }
-            console.log('Final workData:', workData);
+            // Load work and patient data (using API utility)
+            const workData = await fetchWorkWithPatients(workIds);
 
             // Group by work_id to create cases
             const casesMap = {};
-            sets?.forEach(set => {
+            sets.forEach(set => {
                 if (!casesMap[set.work_id]) {
                     const work = workData[set.work_id];
                     casesMap[set.work_id] = {
@@ -210,8 +141,6 @@ const Dashboard = () => {
             setCases(Object.values(casesMap));
 
         } catch (error) {
-            console.error('Error loading cases:', error);
-            console.error('Error details:', error.message, error.details);
             throw error; // Re-throw so parent catch can handle it
         }
     };

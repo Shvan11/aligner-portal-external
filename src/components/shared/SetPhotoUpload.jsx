@@ -28,7 +28,6 @@ const SetPhotoUpload = ({ setId, doctorId, onUploadComplete }) => {
 
         try {
             // Step 1: Get presigned upload URL from Supabase Edge Function
-            console.log('📤 Requesting upload URL for:', file.name);
             const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
             const urlResponse = await fetch(`${supabaseUrl}/functions/v1/aligner-photo-upload-url`, {
                 method: 'POST',
@@ -54,7 +53,6 @@ const SetPhotoUpload = ({ setId, doctorId, onUploadComplete }) => {
             setProgress(30);
 
             // Step 2: Upload directly to R2 using presigned URL
-            console.log('📤 Uploading to R2:', fileKey);
             const uploadResponse = await fetch(uploadUrl, {
                 method: 'PUT',
                 body: file,
@@ -70,7 +68,6 @@ const SetPhotoUpload = ({ setId, doctorId, onUploadComplete }) => {
             setProgress(70);
 
             // Step 3: Save metadata to Supabase via Edge Function
-            console.log('💾 Saving metadata to Supabase');
             const metadataResponse = await fetch(`${supabaseUrl}/functions/v1/aligner-photo-save-metadata`, {
                 method: 'POST',
                 headers: {
@@ -93,7 +90,6 @@ const SetPhotoUpload = ({ setId, doctorId, onUploadComplete }) => {
             }
 
             setProgress(100);
-            console.log('✅ Upload complete!');
 
             // Notify parent component
             if (onUploadComplete) {
@@ -106,7 +102,6 @@ const SetPhotoUpload = ({ setId, doctorId, onUploadComplete }) => {
             }, 1000);
 
         } catch (error) {
-            console.error('❌ Upload failed:', error);
             alert(`Upload failed: ${error.message}`);
             setProgress(0);
         } finally {

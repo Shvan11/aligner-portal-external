@@ -8,11 +8,6 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables!');
-  console.log('Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env file');
-}
-
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
@@ -39,7 +34,6 @@ function decodeJWT(token) {
 
     return JSON.parse(jsonPayload);
   } catch (error) {
-    console.error('Error decoding JWT:', error);
     return null;
   }
 }
@@ -67,7 +61,6 @@ export function getDoctorEmailFromCloudflare() {
   if (cfToken) {
     const payload = decodeJWT(cfToken);
     if (payload && payload.email) {
-      console.log('✅ Authenticated via Cloudflare Access:', payload.email);
       return payload.email;
     }
   }
@@ -83,7 +76,6 @@ export function getDoctorEmail() {
   const params = new URLSearchParams(window.location.search);
   const emailParam = params.get('email');
   if (emailParam) {
-    console.log('🧪 Using email from URL parameter:', emailParam);
     // Store in sessionStorage for navigation persistence
     sessionStorage.setItem('doctor_email', emailParam);
     return emailParam;
@@ -100,7 +92,6 @@ export function getDoctorEmail() {
   // Priority 3: sessionStorage (fallback)
   const storedEmail = sessionStorage.getItem('doctor_email');
   if (storedEmail) {
-    console.log('📦 Using email from sessionStorage:', storedEmail);
     return storedEmail;
   }
 

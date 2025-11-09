@@ -29,7 +29,6 @@ const AnnouncementBanner = ({ doctorId }) => {
                 .order('created_at', { ascending: false });
 
             if (queryError) {
-                console.error('Error loading announcements:', queryError);
                 return;
             }
 
@@ -38,17 +37,13 @@ const AnnouncementBanner = ({ doctorId }) => {
             setAnnouncements(unread);
             setUnreadCount(unread.length);
 
-            console.log(`📬 Loaded ${unread.length} unread announcements`);
-
         } catch (error) {
-            console.error('Error loading announcements:', error);
+            // Error loading announcements
         }
     };
 
     // Subscribe to real-time announcement updates
     const subscribeToAnnouncements = () => {
-        console.log('🔔 Subscribing to real-time announcements for doctor:', doctorId);
-
         const subscription = supabase
             .channel('doctor-announcements')
             .on('postgres_changes', {
@@ -57,7 +52,6 @@ const AnnouncementBanner = ({ doctorId }) => {
                 table: 'doctor_announcements',
                 filter: `target_doctor_id=eq.${doctorId}`
             }, (payload) => {
-                console.log('🔔 New announcement received:', payload.new);
                 handleNewAnnouncement(payload.new);
             })
             .on('postgres_changes', {
@@ -66,7 +60,6 @@ const AnnouncementBanner = ({ doctorId }) => {
                 table: 'doctor_announcements',
                 filter: 'target_doctor_id=is.null'
             }, (payload) => {
-                console.log('📢 New broadcast announcement:', payload.new);
                 handleNewAnnouncement(payload.new);
             })
             .subscribe();
@@ -114,7 +107,6 @@ const AnnouncementBanner = ({ doctorId }) => {
                 });
 
             if (insertError) {
-                console.error('Error marking announcement as read:', insertError);
                 return;
             }
 
@@ -123,7 +115,7 @@ const AnnouncementBanner = ({ doctorId }) => {
             setUnreadCount(prev => prev - 1);
 
         } catch (error) {
-            console.error('Error marking announcement as read:', error);
+            // Error marking announcement as read
         }
     };
 
@@ -145,7 +137,7 @@ const AnnouncementBanner = ({ doctorId }) => {
             setUnreadCount(0);
 
         } catch (error) {
-            console.error('Error dismissing all announcements:', error);
+            // Error dismissing all announcements
         }
     };
 
