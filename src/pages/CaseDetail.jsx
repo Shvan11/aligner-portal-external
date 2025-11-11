@@ -13,6 +13,7 @@ import NotesSection from '../components/shared/NotesSection';
 import SetPhotoUpload from '../components/shared/SetPhotoUpload';
 import SetPhotoGrid from '../components/shared/SetPhotoGrid';
 import FullscreenImageViewer from '../components/shared/FullscreenImageViewer';
+import YouTubeVideoDisplay from '../components/shared/YouTubeVideoDisplay';
 
 const CaseDetail = () => {
     const { workId } = useParams();
@@ -381,6 +382,13 @@ const CaseDetail = () => {
                                                 </a>
                                             )}
                                         </div>
+
+                                        {/* Setup Video */}
+                                        {set.set_video && (
+                                            <div className="set-video-section">
+                                                <YouTubeVideoDisplay videoUrl={set.set_video} />
+                                            </div>
+                                        )}
 
                                         <div className="set-progress">
                                             <div className="progress-bar-container">
