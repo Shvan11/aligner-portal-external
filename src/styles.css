@@ -1160,6 +1160,14 @@ body {
     background: #c62828;
 }
 
+.case-url-btn.video {
+    background: #ff0000;
+}
+
+.case-url-btn.video:hover {
+    background: #cc0000;
+}
+
 /* ===== ANNOUNCEMENTS BANNER ===== */
 .announcements-banner {
     background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);

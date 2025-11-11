@@ -343,7 +343,7 @@ const Dashboard = () => {
                                     )}
 
                                     {/* URLs for Active Set */}
-                                    {(activeSet?.set_url || activeSet?.set_pdf_url) && (
+                                    {(activeSet?.set_url || activeSet?.set_pdf_url || activeSet?.set_video) && (
                                         <div className="case-urls">
                                             {activeSet.set_url && (
                                                 <a
@@ -367,6 +367,18 @@ const Dashboard = () => {
                                                 >
                                                     <i className="fas fa-file-pdf"></i>
                                                     View PDF
+                                                </a>
+                                            )}
+                                            {activeSet.set_video && (
+                                                <a
+                                                    href={activeSet.set_video}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="case-url-btn video"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <i className="fab fa-youtube"></i>
+                                                    Setup Video
                                                 </a>
                                             )}
                                         </div>
