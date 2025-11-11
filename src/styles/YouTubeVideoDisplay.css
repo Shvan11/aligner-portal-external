@@ -1,0 +1,127 @@
+/* YouTubeVideoDisplay.css - Styles for YouTube video display component */
+
+.youtube-video-container {
+  display: inline-block;
+  cursor: pointer;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  background: #000;
+  max-width: 480px;
+  width: 100%;
+}
+
+.youtube-video-container:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.youtube-video-container:focus {
+  outline: 2px solid var(--portal-blue);
+  outline-offset: 2px;
+}
+
+.youtube-thumbnail-wrapper {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%; /* 16:9 aspect ratio */
+  overflow: hidden;
+  background: #000;
+}
+
+.youtube-thumbnail {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.2s ease;
+}
+
+.youtube-video-container:hover .youtube-thumbnail {
+  opacity: 0.9;
+}
+
+.youtube-play-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+  transition: background 0.2s ease;
+}
+
+.youtube-video-container:hover .youtube-play-overlay {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.youtube-play-button {
+  width: 68px;
+  height: 48px;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.youtube-video-container:hover .youtube-play-button {
+  transform: scale(1.1);
+}
+
+.youtube-play-icon {
+  width: 100%;
+  height: 100%;
+}
+
+.youtube-video-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #fff;
+  color: var(--portal-text);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.youtube-video-label i {
+  color: #ff0000;
+  font-size: 1.1rem;
+}
+
+.youtube-video-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 8px;
+  color: #856404;
+  font-size: 0.9rem;
+}
+
+.youtube-video-error i {
+  color: #ffc107;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .youtube-video-container {
+    max-width: 100%;
+  }
+
+  .youtube-play-button {
+    width: 56px;
+    height: 40px;
+  }
+
+  .youtube-video-label {
+    font-size: 0.85rem;
+    padding: 0.6rem 0.8rem;
+  }
+}
