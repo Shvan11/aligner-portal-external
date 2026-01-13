@@ -503,6 +503,33 @@ body {
     color: var(--portal-grey);
 }
 
+/* ===== SET SECTION (Generic) ===== */
+.set-section {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--portal-grey-light);
+}
+
+.set-section h4 {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+    color: var(--portal-grey-dark);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.set-section h4 i {
+    color: var(--portal-primary);
+}
+
+.section-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
 /* ===== BATCHES SECTION ===== */
 .batches-section {
     margin-top: 1rem;

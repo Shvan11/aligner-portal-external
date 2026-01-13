@@ -1,16 +1,24 @@
 /**
  * API Utility Functions
- * Shared data loading functions to eliminate code duplication
+ * Shared data loading functions with proper TypeScript types
  */
 
 import { supabase } from './supabase';
+import type {
+  AlignerSet,
+  AlignerBatch,
+  AlignerNote,
+  AlignerSetPhoto,
+  Work,
+  Patient,
+  WorkDataMap,
+  NoteType,
+} from '../types';
 
 /**
  * Fetch all aligner sets for a doctor with related data
- * @param {number} drId - Doctor ID
- * @returns {Promise<Array>} Array of aligner sets
  */
-export async function fetchAlignerSets(drId) {
+export async function fetchAlignerSets(drId: number): Promise<AlignerSet[]> {
   const { data, error } = await supabase
     .from('aligner_sets')
     .select(`
@@ -32,15 +40,13 @@ export async function fetchAlignerSets(drId) {
     .order('creation_date', { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return (data as AlignerSet[]) || [];
 }
 
 /**
  * Fetch work records by work IDs
- * @param {Array<number>} workIds - Array of work IDs
- * @returns {Promise<Array>} Array of work records
  */
-export async function fetchWorkRecords(workIds) {
+export async function fetchWorkRecords(workIds: number[]): Promise<Work[]> {
   if (!workIds || workIds.length === 0) return [];
 
   const { data, error } = await supabase
@@ -49,15 +55,13 @@ export async function fetchWorkRecords(workIds) {
     .in('work_id', workIds);
 
   if (error) throw error;
-  return data || [];
+  return (data as Work[]) || [];
 }
 
 /**
  * Fetch patient records by person IDs
- * @param {Array<number>} personIds - Array of person IDs
- * @returns {Promise<Array>} Array of patient records
  */
-export async function fetchPatients(personIds) {
+export async function fetchPatients(personIds: number[]): Promise<Patient[]> {
   if (!personIds || personIds.length === 0) return [];
 
   const { data, error } = await supabase
@@ -66,16 +70,14 @@ export async function fetchPatients(personIds) {
     .in('person_id', personIds);
 
   if (error) throw error;
-  return data || [];
+  return (data as Patient[]) || [];
 }
 
 /**
  * Fetch work and patient data for given work IDs
  * Returns combined work + patient data
- * @param {Array<number>} workIds - Array of work IDs
- * @returns {Promise<Object>} Object keyed by work_id with combined work/patient data
  */
-export async function fetchWorkWithPatients(workIds) {
+export async function fetchWorkWithPatients(workIds: number[]): Promise<WorkDataMap> {
   if (!workIds || workIds.length === 0) return {};
 
   // Get work records
@@ -88,17 +90,17 @@ export async function fetchWorkWithPatients(workIds) {
   const patientRecords = await fetchPatients(personIds);
 
   // Create patient lookup map
-  const patientMap = {};
+  const patientMap: Record<number, Patient> = {};
   patientRecords.forEach(p => {
     patientMap[p.person_id] = p;
   });
 
   // Combine work and patient data
-  const workData = {};
+  const workData: WorkDataMap = {};
   workRecords.forEach(w => {
     workData[w.work_id] = {
       ...w,
-      patients: patientMap[w.person_id]
+      patients: patientMap[w.person_id] || null,
     };
   });
 
@@ -107,10 +109,8 @@ export async function fetchWorkWithPatients(workIds) {
 
 /**
  * Fetch batches for a specific aligner set
- * @param {number} setId - Aligner set ID
- * @returns {Promise<Array>} Array of batches
  */
-export async function fetchBatches(setId) {
+export async function fetchBatches(setId: number): Promise<AlignerBatch[]> {
   const { data, error } = await supabase
     .from('aligner_batches')
     .select('*')
@@ -118,15 +118,13 @@ export async function fetchBatches(setId) {
     .order('batch_sequence', { ascending: true });
 
   if (error) throw error;
-  return data || [];
+  return (data as AlignerBatch[]) || [];
 }
 
 /**
  * Fetch notes for a specific aligner set
- * @param {number} setId - Aligner set ID
- * @returns {Promise<Array>} Array of notes
  */
-export async function fetchNotes(setId) {
+export async function fetchNotes(setId: number): Promise<AlignerNote[]> {
   const { data, error } = await supabase
     .from('aligner_notes')
     .select('*')
@@ -134,62 +132,60 @@ export async function fetchNotes(setId) {
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return (data as AlignerNote[]) || [];
 }
 
 /**
  * Fetch photos for a specific aligner set (with presigned URLs from Edge Function)
- * @param {number} setId - Aligner set ID
- * @returns {Promise<Array>} Array of photos with presigned URLs
  */
-export async function fetchPhotos(setId) {
+export async function fetchPhotos(setId: number): Promise<AlignerSetPhoto[]> {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const response = await fetch(`${supabaseUrl}/functions/v1/aligner-photo-get-urls?setId=${setId}`, {
-    headers: {
-      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+  const response = await fetch(
+    `${supabaseUrl}/functions/v1/aligner-photo-get-urls?setId=${setId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
     }
-  });
+  );
 
   if (!response.ok) {
     throw new Error('Failed to load photos');
   }
 
   const result = await response.json();
-  return result.photos || [];
+  return (result.photos as AlignerSetPhoto[]) || [];
 }
 
 /**
  * Add a note to an aligner set
- * @param {number} setId - Aligner set ID
- * @param {string} noteText - Note text content
- * @param {string} noteType - Note type (e.g., 'Doctor')
- * @returns {Promise<Object>} Created note object
  */
-export async function createNote(setId, noteText, noteType = 'Doctor') {
+export async function createNote(
+  setId: number,
+  noteText: string,
+  noteType: NoteType = 'Doctor'
+): Promise<AlignerNote | null> {
   const { data, error } = await supabase
     .from('aligner_notes')
     .insert({
       aligner_set_id: setId,
       note_type: noteType,
       note_text: noteText.trim(),
-      is_read: false
+      is_read: false,
     })
     .select();
 
   if (error) throw error;
-  return data?.[0];
+  return (data?.[0] as AlignerNote) ?? null;
 }
 
 /**
  * Update days per aligner for a batch
- * @param {number} batchId - Batch ID
- * @param {number} days - Number of days
- * @returns {Promise<void>}
  */
-export async function updateBatchDays(batchId, days) {
+export async function updateBatchDays(batchId: number, days: number): Promise<void> {
   const { error } = await supabase
     .from('aligner_batches')
-    .update({ days: parseInt(days) })
+    .update({ days: parseInt(String(days), 10) })
     .eq('aligner_batch_id', batchId);
 
   if (error) throw error;
@@ -197,10 +193,8 @@ export async function updateBatchDays(batchId, days) {
 
 /**
  * Fetch work data by work ID
- * @param {number} workId - Work ID
- * @returns {Promise<Object>} Work record
  */
-export async function fetchWork(workId) {
+export async function fetchWork(workId: number): Promise<Work | null> {
   const { data, error } = await supabase
     .from('work')
     .select('work_id, person_id, type_of_work')
@@ -208,15 +202,13 @@ export async function fetchWork(workId) {
     .single();
 
   if (error) throw error;
-  return data;
+  return data as Work | null;
 }
 
 /**
  * Fetch patient data by person ID
- * @param {number} personId - Person ID
- * @returns {Promise<Object>} Patient record
  */
-export async function fetchPatient(personId) {
+export async function fetchPatient(personId: number): Promise<Patient | null> {
   const { data, error } = await supabase
     .from('patients')
     .select('person_id, patient_id, patient_name, first_name, last_name, phone')
@@ -224,16 +216,16 @@ export async function fetchPatient(personId) {
     .single();
 
   if (error) throw error;
-  return data;
+  return data as Patient | null;
 }
 
 /**
  * Fetch sets for a specific work ID and doctor
- * @param {number} workId - Work ID
- * @param {number} drId - Doctor ID
- * @returns {Promise<Array>} Array of aligner sets
  */
-export async function fetchSetsForWork(workId, drId) {
+export async function fetchSetsForWork(
+  workId: number,
+  drId: number
+): Promise<AlignerSet[]> {
   const { data, error } = await supabase
     .from('aligner_sets')
     .select(`
@@ -250,5 +242,5 @@ export async function fetchSetsForWork(workId, drId) {
     .order('set_sequence', { ascending: true });
 
   if (error) throw error;
-  return data || [];
+  return (data as AlignerSet[]) || [];
 }
