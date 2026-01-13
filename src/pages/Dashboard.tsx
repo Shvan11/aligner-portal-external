@@ -115,13 +115,11 @@ const Dashboard: React.FC = () => {
     return cases.filter(c => {
       const workId = c.work_id.toString();
       const patientName = c.patient?.patient_name?.toLowerCase() || '';
-      const patientId = c.patient?.patient_id?.toLowerCase() || '';
       const phone = c.patient?.phone?.toLowerCase() || '';
 
       return (
         workId.includes(query) ||
         patientName.includes(query) ||
-        patientId.includes(query) ||
         phone.includes(query)
       );
     });

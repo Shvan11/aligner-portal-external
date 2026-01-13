@@ -66,7 +66,7 @@ export async function fetchPatients(personIds: number[]): Promise<Patient[]> {
 
   const { data, error } = await supabase
     .from('patients')
-    .select('person_id, patient_id, patient_name, first_name, last_name, phone')
+    .select('person_id, patient_name, first_name, last_name, phone')
     .in('person_id', personIds);
 
   if (error) throw error;
@@ -211,7 +211,7 @@ export async function fetchWork(workId: number): Promise<Work | null> {
 export async function fetchPatient(personId: number): Promise<Patient | null> {
   const { data, error } = await supabase
     .from('patients')
-    .select('person_id, patient_id, patient_name, first_name, last_name, phone')
+    .select('person_id, patient_name, first_name, last_name, phone')
     .eq('person_id', personId)
     .single();
 

@@ -33,7 +33,6 @@ export type AlignerDoctorMinimal = Pick<AlignerDoctor, 'dr_id' | 'doctor_name' |
  */
 export interface Patient {
   person_id: number;
-  patient_id: string;
   patient_name: string | null;
   first_name: string | null;
   last_name: string | null;

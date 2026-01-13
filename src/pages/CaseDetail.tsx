@@ -252,9 +252,6 @@ const CaseDetail: React.FC = () => {
                   color: 'var(--portal-grey)',
                 }}
               >
-                <div>
-                  <strong>Patient ID:</strong> {selectedCase.patient.patient_id}
-                </div>
                 {selectedCase.patient.phone && (
                   <div>
                     <strong>Phone:</strong> {selectedCase.patient.phone}

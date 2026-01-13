@@ -24,13 +24,6 @@ const CaseCard = memo(function CaseCard({ caseData, onSelect }: CaseCardProps) {
       <div className="case-header">
         <div className="case-patient-info">
           <h3>{caseData.patient?.patient_name || `Work #${caseData.work_id}`}</h3>
-          {caseData.patient?.patient_id && (
-            <div
-              style={{ fontSize: '0.85rem', color: 'var(--portal-grey)', marginTop: '0.25rem' }}
-            >
-              ID: {caseData.patient.patient_id}
-            </div>
-          )}
         </div>
         {caseData.active_sets > 0 ? (
           <span className="case-active-badge">Active</span>
