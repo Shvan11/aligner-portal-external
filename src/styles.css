@@ -884,6 +884,33 @@ body {
         padding-left: 0;
         justify-content: center;
     }
+
+    .notes-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .btn-add-note {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .note-header-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+
+    .note-form-actions {
+        flex-direction: column;
+    }
+
+    .btn-cancel,
+    .btn-submit {
+        width: 100%;
+        justify-content: center;
+    }
 }
 
 /* ===== PAYMENT SUMMARY ===== */

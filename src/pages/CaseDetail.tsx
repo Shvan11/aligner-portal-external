@@ -75,11 +75,13 @@ const CaseDetail: React.FC = () => {
         }
       });
 
-      // Auto-expand the active set and load only notes/photos for it
+      // Auto-expand the active set and load notes/photos in parallel
       const activeSet = caseData.sets.find(set => set.is_active);
       if (activeSet) {
-        await loadNotes(activeSet.aligner_set_id);
-        await loadPhotos(activeSet.aligner_set_id);
+        await Promise.all([
+          loadNotes(activeSet.aligner_set_id),
+          loadPhotos(activeSet.aligner_set_id)
+        ]);
         setExpandedSets(prev => ({ ...prev, [activeSet.aligner_set_id]: true }));
       }
     } catch {
@@ -105,14 +107,14 @@ const CaseDetail: React.FC = () => {
       if (expandedSets[setId]) {
         setExpandedSets(prev => ({ ...prev, [setId]: false }));
       } else {
-        if (!batches[setId]) {
-          await loadBatches(setId);
-        }
-        if (!notes[setId]) {
-          await loadNotes(setId);
-        }
-        if (!photos[setId]) {
-          await loadPhotos(setId);
+        // Load missing data in parallel
+        const loadPromises: Promise<unknown>[] = [];
+        if (!batches[setId]) loadPromises.push(loadBatches(setId));
+        if (!notes[setId]) loadPromises.push(loadNotes(setId));
+        if (!photos[setId]) loadPromises.push(loadPhotos(setId));
+
+        if (loadPromises.length > 0) {
+          await Promise.all(loadPromises);
         }
         setExpandedSets(prev => ({ ...prev, [setId]: true }));
       }
