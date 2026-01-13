@@ -4,14 +4,14 @@
 
 import React, { useState, useEffect, useCallback, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchAlignerSets, fetchWorkWithPatients } from '../lib/api';
+import { fetchAlignerSetsWithDetails, clearDashboardCache } from '../lib/api';
 import { useAuthenticatedDoctor } from '../hooks/useAuthenticatedDoctor';
 import { useToast } from '../contexts/ToastContext';
 import PortalHeader from '../components/shared/PortalHeader';
 import AnnouncementBanner from '../components/shared/AnnouncementBanner';
 import AdminDoctorSelector from '../components/shared/AdminDoctorSelector';
 import CaseCard from '../components/shared/CaseCard';
-import type { AlignerDoctor, AlignerSet, CaseData } from '../types';
+import type { AlignerDoctor, AlignerSetWithDetails, CaseData } from '../types';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -31,28 +31,21 @@ const Dashboard: React.FC = () => {
     handleLogout,
   } = useAuthenticatedDoctor();
 
-  // Load all cases for this doctor
+  // Load all cases for this doctor (optimized with single deep join query)
   const loadCases = useCallback(async (drId: number): Promise<void> => {
     setCasesLoading(true);
     try {
-      // Get all sets for this doctor with related data (using API utility)
-      const sets = await fetchAlignerSets(drId);
-
-      // Get unique work IDs
-      const workIds = [...new Set(sets.map(s => s.work_id))];
-
-      // Load work and patient data (using API utility)
-      const workData = await fetchWorkWithPatients(workIds);
+      // Single query with deep joins - work and patient data included
+      const sets = await fetchAlignerSetsWithDetails(drId);
 
       // Group by work_id to create cases
       const casesMap: Record<number, CaseData> = {};
-      sets.forEach((set: AlignerSet) => {
+      sets.forEach((set: AlignerSetWithDetails) => {
         if (!casesMap[set.work_id]) {
-          const work = workData[set.work_id];
           casesMap[set.work_id] = {
             work_id: set.work_id,
-            patient: work?.patients,
-            type_of_work: work?.type_of_work,
+            patient: set.work.patients,
+            type_of_work: set.work.type_of_work,
             sets: [],
             total_sets: 0,
             active_sets: 0,
@@ -87,6 +80,9 @@ const Dashboard: React.FC = () => {
     async (selectedDoctor: AlignerDoctor | null): Promise<void> => {
       if (!selectedDoctor) {
         setCases([]);
+      } else {
+        // Clear cache for new doctor to ensure fresh data
+        clearDashboardCache(selectedDoctor.dr_id);
       }
       await baseHandleAdminDoctorSelect(selectedDoctor);
     },
@@ -217,7 +213,7 @@ const Dashboard: React.FC = () => {
               <input
                 type="text"
                 className="search-input"
-                placeholder="Search by patient name, ID, phone, or work ID..."
+                placeholder="Search by patient name, phone, or work ID..."
                 value={searchQuery}
                 onChange={handleSearchChange}
               />

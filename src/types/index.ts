@@ -14,6 +14,7 @@ export type {
   AlignerSetPayment,
   AlignerBatchCount,
   AlignerSet,
+  AlignerSetWithDetails,
   AlignerBatch,
   NoteType,
   AlignerNote,

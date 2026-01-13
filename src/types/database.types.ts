@@ -111,6 +111,17 @@ export interface AlignerSet {
   aligner_set_payments?: AlignerSetPayment[];
 }
 
+/**
+ * AlignerSet with nested work and patient data (for Dashboard deep join)
+ */
+export interface AlignerSetWithDetails extends AlignerSet {
+  work: {
+    work_id: number;
+    type_of_work: string | null;
+    patients: Patient | null;
+  };
+}
+
 // =============================================================================
 // ALIGNER BATCH TYPES
 // =============================================================================

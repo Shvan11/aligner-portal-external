@@ -6,6 +6,7 @@
 import { supabase } from './supabase';
 import type {
   AlignerSet,
+  AlignerSetWithDetails,
   AlignerBatch,
   AlignerNote,
   AlignerSetPhoto,
@@ -15,8 +16,121 @@ import type {
   NoteType,
 } from '../types';
 
+// =============================================================================
+// CACHE UTILITIES
+// =============================================================================
+
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+function getCached<T>(key: string): T | null {
+  try {
+    const cached = sessionStorage.getItem(key);
+    if (!cached) return null;
+    const entry: CacheEntry<T> = JSON.parse(cached);
+    if (Date.now() - entry.timestamp > CACHE_TTL) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+    return entry.data;
+  } catch {
+    return null;
+  }
+}
+
+function setCache<T>(key: string, data: T): void {
+  try {
+    const entry: CacheEntry<T> = { data, timestamp: Date.now() };
+    sessionStorage.setItem(key, JSON.stringify(entry));
+  } catch {
+    // Storage full or unavailable - ignore
+  }
+}
+
+export function clearDashboardCache(drId?: number): void {
+  if (drId) {
+    sessionStorage.removeItem(`dashboard_cases_${drId}`);
+  } else {
+    // Clear all dashboard caches
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const key = sessionStorage.key(i);
+      if (key?.startsWith('dashboard_cases_')) {
+        sessionStorage.removeItem(key);
+      }
+    }
+  }
+}
+
+// =============================================================================
+// DASHBOARD API (Optimized with Deep Join)
+// =============================================================================
+
+/**
+ * Fetch all aligner sets with work and patient data in a single query
+ * Uses Supabase deep joins to eliminate waterfall requests
+ */
+export async function fetchAlignerSetsWithDetails(
+  drId: number,
+  useCache = true
+): Promise<AlignerSetWithDetails[]> {
+  const cacheKey = `dashboard_cases_${drId}`;
+
+  // Check cache first
+  if (useCache) {
+    const cached = getCached<AlignerSetWithDetails[]>(cacheKey);
+    if (cached) return cached;
+  }
+
+  const { data, error } = await supabase
+    .from('aligner_sets')
+    .select(`
+      *,
+      aligner_batches (
+        aligner_batch_id,
+        batch_sequence,
+        delivered_to_patient_date,
+        upper_aligner_count,
+        lower_aligner_count
+      ),
+      aligner_set_payments (
+        total_paid,
+        balance,
+        payment_status
+      ),
+      work!inner (
+        work_id,
+        type_of_work,
+        patients (
+          person_id,
+          patient_name,
+          phone
+        )
+      )
+    `)
+    .eq('aligner_dr_id', drId)
+    .order('creation_date', { ascending: false });
+
+  if (error) throw error;
+
+  const result = (data as AlignerSetWithDetails[]) || [];
+
+  // Cache the result
+  setCache(cacheKey, result);
+
+  return result;
+}
+
+// =============================================================================
+// LEGACY API FUNCTIONS (kept for CaseDetail page)
+// =============================================================================
+
 /**
  * Fetch all aligner sets for a doctor with related data
+ * @deprecated Use fetchAlignerSetsWithDetails for Dashboard
  */
 export async function fetchAlignerSets(drId: number): Promise<AlignerSet[]> {
   const { data, error } = await supabase
