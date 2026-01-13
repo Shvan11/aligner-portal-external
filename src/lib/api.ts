@@ -358,3 +358,82 @@ export async function fetchSetsForWork(
   if (error) throw error;
   return (data as AlignerSet[]) || [];
 }
+
+// =============================================================================
+// CASE DETAIL API (Optimized with Deep Join)
+// =============================================================================
+
+/**
+ * Combined case detail response type
+ */
+export interface CaseDetailData {
+  work: Work & { patients: Patient | null };
+  sets: AlignerSetWithBatches[];
+}
+
+/**
+ * Aligner set with full batches data (not just count)
+ */
+export interface AlignerSetWithBatches extends AlignerSet {
+  aligner_batches: AlignerBatch[];
+}
+
+/**
+ * Fetch complete case detail in a single query
+ * Replaces: fetchWork + fetchPatient + fetchSetsForWork + loadBatches
+ */
+export async function fetchCaseDetail(
+  workId: number,
+  drId: number
+): Promise<CaseDetailData | null> {
+  // Single query: work + patient + sets + batches + payments
+  const { data, error } = await supabase
+    .from('aligner_sets')
+    .select(`
+      *,
+      aligner_batches (
+        aligner_batch_id,
+        aligner_set_id,
+        batch_sequence,
+        days,
+        delivered_to_patient_date,
+        upper_aligner_count,
+        lower_aligner_count
+      ),
+      aligner_set_payments (
+        total_paid,
+        balance,
+        payment_status
+      ),
+      work!inner (
+        work_id,
+        person_id,
+        type_of_work,
+        patients (
+          person_id,
+          patient_name,
+          first_name,
+          last_name,
+          phone
+        )
+      )
+    `)
+    .eq('work_id', workId)
+    .eq('aligner_dr_id', drId)
+    .order('set_sequence', { ascending: true });
+
+  if (error) throw error;
+  if (!data || data.length === 0) return null;
+
+  // Extract work data from first set (same for all sets in this work)
+  const firstSet = data[0] as AlignerSetWithBatches & { work: Work & { patients: Patient | null } };
+  const work = firstSet.work;
+
+  // Map sets without the nested work object
+  const sets: AlignerSetWithBatches[] = data.map((set: AlignerSetWithBatches & { work: unknown }) => {
+    const { work: _work, ...setData } = set;
+    return setData as AlignerSetWithBatches;
+  });
+
+  return { work, sets };
+}

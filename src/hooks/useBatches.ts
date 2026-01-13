@@ -15,6 +15,7 @@ export interface UseBatchesReturn {
   loading: LoadingState;
   error: ErrorState;
   loadBatches: (setId: number) => Promise<AlignerBatch[] | undefined>;
+  setBatchesData: (setId: number, data: AlignerBatch[]) => void;
 }
 
 export function useBatches(): UseBatchesReturn {
@@ -42,10 +43,16 @@ export function useBatches(): UseBatchesReturn {
     }
   }, []);
 
+  // Pre-populate batches data (for optimized queries that include batches)
+  const setBatchesData = useCallback((setId: number, data: AlignerBatch[]): void => {
+    setBatches(prev => ({ ...prev, [setId]: data }));
+  }, []);
+
   return {
     batches,
     loading,
     error,
     loadBatches,
+    setBatchesData,
   };
 }

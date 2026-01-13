@@ -4,7 +4,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchWork, fetchPatient, fetchSetsForWork, updateBatchDays } from '../lib/api';
+import { fetchCaseDetail, updateBatchDays } from '../lib/api';
+import type { AlignerSetWithBatches } from '../lib/api';
 import { useBatches } from '../hooks/useBatches';
 import { useNotes } from '../hooks/useNotes';
 import { usePhotos } from '../hooks/usePhotos';
@@ -14,7 +15,7 @@ import PortalHeader from '../components/shared/PortalHeader';
 import AnnouncementBanner from '../components/shared/AnnouncementBanner';
 import SetCard from '../components/shared/SetCard';
 import FullscreenImageViewer from '../components/shared/FullscreenImageViewer';
-import type { AlignerSet, AlignerSetPhoto, SelectedCase, ExpandedState, ShowAddNoteState } from '../types';
+import type { AlignerSetPhoto, SelectedCase, ExpandedState, ShowAddNoteState } from '../types';
 
 const CaseDetail: React.FC = () => {
   const { workId } = useParams<{ workId: string }>();
@@ -22,7 +23,7 @@ const CaseDetail: React.FC = () => {
   const toast = useToast();
 
   // Use custom hooks for data management
-  const { batches, loadBatches } = useBatches();
+  const { batches, loadBatches, setBatchesData } = useBatches();
   const { notes, loadNotes, addNote: addNoteHook } = useNotes();
   const { photos, loadPhotos } = usePhotos();
 
@@ -37,65 +38,57 @@ const CaseDetail: React.FC = () => {
 
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedCase, setSelectedCase] = useState<SelectedCase | null>(null);
-  const [sets, setSets] = useState<AlignerSet[]>([]);
+  const [sets, setSets] = useState<AlignerSetWithBatches[]>([]);
   const [expandedSets, setExpandedSets] = useState<ExpandedState>({});
   const [showAddNote, setShowAddNote] = useState<ShowAddNoteState>({});
   const [noteText, setNoteText] = useState<string>('');
   const [selectedPhoto, setSelectedPhoto] = useState<AlignerSetPhoto | null>(null);
 
-  // Load sets for a specific case
-  const loadSets = useCallback(async (workIdParam: number, drId: number): Promise<void> => {
-    try {
-      // Fetch sets using API utility
-      const data = await fetchSetsForWork(workIdParam, drId);
-
-      setSets(data);
-
-      // Auto-expand the active set
-      const activeSet = data.find(set => set.is_active);
-      if (activeSet) {
-        await loadBatches(activeSet.aligner_set_id);
-        await loadNotes(activeSet.aligner_set_id);
-        await loadPhotos(activeSet.aligner_set_id);
-        setExpandedSets(prev => ({ ...prev, [activeSet.aligner_set_id]: true }));
-      }
-    } catch {
-      toast.error('Failed to load aligner sets');
-    }
-  }, [loadBatches, loadNotes, loadPhotos, toast]);
-
-  // Load case and sets data
+  // Load case and sets data (optimized: single query)
   const loadCaseData = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
-      // Load work data (using API utility)
-      const workData = await fetchWork(parseInt(workId || '0', 10));
+      if (!doctor?.dr_id) return;
 
-      if (!workData) {
+      // Single optimized query: work + patient + sets + batches + payments
+      const caseData = await fetchCaseDetail(parseInt(workId || '0', 10), doctor.dr_id);
+
+      if (!caseData) {
         navigate('/');
         return;
       }
 
-      // Load patient data (using API utility)
-      const patientData = await fetchPatient(workData.person_id);
-
       // Set case data
       setSelectedCase({
-        work_id: workData.work_id,
-        type_of_work: workData.type_of_work,
-        patient: patientData,
+        work_id: caseData.work.work_id,
+        type_of_work: caseData.work.type_of_work,
+        patient: caseData.work.patients,
       });
 
-      // Load sets
-      if (doctor?.dr_id) {
-        await loadSets(parseInt(workId || '0', 10), doctor.dr_id);
+      // Set sets (batches already included)
+      setSets(caseData.sets);
+
+      // Pre-populate batches cache from the response
+      caseData.sets.forEach(set => {
+        if (set.aligner_batches) {
+          setBatchesData(set.aligner_set_id, set.aligner_batches);
+        }
+      });
+
+      // Auto-expand the active set and load only notes/photos for it
+      const activeSet = caseData.sets.find(set => set.is_active);
+      if (activeSet) {
+        await loadNotes(activeSet.aligner_set_id);
+        await loadPhotos(activeSet.aligner_set_id);
+        setExpandedSets(prev => ({ ...prev, [activeSet.aligner_set_id]: true }));
       }
     } catch {
       toast.error('Failed to load case details');
     } finally {
       setLoading(false);
     }
-  }, [workId, navigate, doctor?.dr_id, loadSets, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workId, navigate, doctor?.dr_id, loadNotes, loadPhotos, setBatchesData]);
 
   // Load case data when doctor is authenticated
   useEffect(() => {
