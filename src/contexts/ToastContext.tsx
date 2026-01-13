@@ -9,6 +9,7 @@ import React, {
   useState,
   useCallback,
   useRef,
+  useMemo,
   type ReactNode,
 } from 'react';
 import type {
@@ -80,15 +81,18 @@ export function ToastProvider({ children }: ToastProviderProps): React.JSX.Eleme
     [addToast]
   );
 
-  const value: ToastContextValue = {
-    toasts,
-    addToast,
-    removeToast,
-    success,
-    error,
-    warning,
-    info,
-  };
+  const value: ToastContextValue = useMemo(
+    () => ({
+      toasts,
+      addToast,
+      removeToast,
+      success,
+      error,
+      warning,
+      info,
+    }),
+    [toasts, addToast, removeToast, success, error, warning, info]
+  );
 
   return (
     <ToastContext.Provider value={value}>

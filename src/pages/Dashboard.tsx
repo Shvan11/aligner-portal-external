@@ -66,7 +66,9 @@ const Dashboard: React.FC = () => {
     } finally {
       setCasesLoading(false);
     }
-  }, [toast]);
+    // Note: toast.error is a stable callback from ToastContext, safe to omit from deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Load cases when doctor changes
   useEffect(() => {
