@@ -1,0 +1,10 @@
+# Supabase project config for the external aligner portal.
+# Only the auth-bridge edge function is defined here; the DB schema is owned by
+# the main app's CDC mirror, not this repo.
+project_id = "ucfbpflrhggxvejhhqhx"
+
+[functions.aligner-portal-auth]
+# We perform our own Cloudflare-Access JWT verification inside the function, so
+# the gateway must not require a Supabase JWT. (The gateway still needs the
+# `apikey` header, which the portal sends.)
+verify_jwt = false

@@ -8,18 +8,20 @@ import type { Patient, AlignerDoctor, AlignerDoctorMinimal } from '../types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-// Main app (cloudflared tunnel) — mints the scoped Supabase JWT the portal reads under.
-const mainAppUrl = (import.meta.env.VITE_MAIN_APP_URL || '').replace(/\/+$/, '');
+// Always-on auth bridge: a Supabase Edge Function mints the scoped Supabase JWT
+// the portal reads under (replaces the old main-app/cloudflared dependency).
+const authFnUrl = `${(supabaseUrl || '').replace(/\/+$/, '')}/functions/v1/aligner-portal-auth`;
 
 // =============================================================================
 // PORTAL SESSION / TOKEN EXCHANGE
 //
 // The Supabase project is the RAW clinic mirror, RLS-locked. The anon key alone
-// returns nothing. Instead we send the Cloudflare-Access identity to the main
-// app, which verifies it and mints a short-lived Supabase JWT carrying a `dr_id`
-// claim. RLS on the raw tables filters every row by that claim. The minted token
-// is supplied to supabase-js via the `accessToken` option (called per request),
-// so all reads run under the doctor's row boundary.
+// returns nothing. Instead we send the Cloudflare-Access identity to the
+// `aligner-portal-auth` Edge Function, which verifies it and mints a short-lived
+// Supabase JWT carrying a `dr_id` claim. RLS on the raw tables filters every row
+// by that claim. The minted token is supplied to supabase-js via the
+// `accessToken` option (called per request), so all reads run under the doctor's
+// row boundary. (The Edge Function is always-on — no clinic home-server dependency.)
 // =============================================================================
 
 interface PortalCredentials {
@@ -45,14 +47,20 @@ export function getCfToken(): string | null {
   return getCookie('CF_Authorization');
 }
 
-/** Call the main app to mint a scoped Supabase JWT for the current auth context. */
+/** Call the auth Edge Function to mint a scoped Supabase JWT for the current auth context. */
 async function requestToken(ctx: PortalCredentials): Promise<TokenResponse> {
-  if (!mainAppUrl) {
-    throw new Error('VITE_MAIN_APP_URL is not configured');
+  if (!supabaseUrl) {
+    throw new Error('VITE_SUPABASE_URL is not configured');
   }
-  const res = await fetch(`${mainAppUrl}/api/aligner-portal/token`, {
+  // `apikey` + `Authorization` carry the anon key for the Supabase gateway; the
+  // Cloudflare-Access identity travels in the body (`cfToken`), never Authorization.
+  const res = await fetch(`${authFnUrl}/token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+    },
     body: JSON.stringify({
       cfToken: ctx.cfToken ?? undefined,
       email: ctx.email ?? undefined,
@@ -99,20 +107,26 @@ export function clearPortalSession(): void {
 
 /**
  * Fetch the full doctor list for the admin impersonation dropdown. Sourced from
- * the main app (RLS keeps a regular doctor from listing peers, and the admin
- * never gets a blanket mirror bypass), so this never touches Supabase.
+ * the auth Edge Function (RLS keeps a regular doctor from listing peers, and the
+ * admin never gets a blanket mirror bypass), which resolves it with a service-role
+ * client behind its own Cloudflare-Access check.
  */
 export async function fetchAdminDoctors(): Promise<AlignerDoctorMinimal[]> {
-  if (!mainAppUrl) {
-    throw new Error('VITE_MAIN_APP_URL is not configured');
+  if (!supabaseUrl) {
+    throw new Error('VITE_SUPABASE_URL is not configured');
   }
   const cfToken = getCfToken();
   const email = getDoctorEmail();
   const params = new URLSearchParams();
   if (!cfToken && email) params.set('email', email); // dev fallback
-  const res = await fetch(`${mainAppUrl}/api/aligner-portal/doctors?${params.toString()}`, {
-    headers: cfToken ? { Authorization: `Bearer ${cfToken}` } : {},
-  });
+  // CF identity goes in a dedicated header (Authorization is reserved for the
+  // Supabase gateway's anon key).
+  const headers: Record<string, string> = {
+    apikey: supabaseAnonKey,
+    Authorization: `Bearer ${supabaseAnonKey}`,
+  };
+  if (cfToken) headers['cf-access-jwt-assertion'] = cfToken;
+  const res = await fetch(`${authFnUrl}/doctors?${params.toString()}`, { headers });
   if (!res.ok) {
     throw new Error(`Failed to load doctors (${res.status})`);
   }
