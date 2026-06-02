@@ -47,7 +47,12 @@ const TOKEN_TTL = '30m';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const JWT_SECRET = Deno.env.get('PORTAL_JWT_SECRET') ?? '';
-const ALLOWED_ORIGIN = Deno.env.get('PORTAL_ALLOWED_ORIGIN') ?? '*';
+// Comma-separated allowlist (e.g. the custom domain + the *.pages.dev preview).
+// We reflect whichever request Origin matches so multiple front-ends work.
+const ALLOWED_ORIGINS = (Deno.env.get('PORTAL_ALLOWED_ORIGIN') ?? '*')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 const ALLOW_DEV_EMAIL = (Deno.env.get('PORTAL_ALLOW_DEV_EMAIL') ?? '').toLowerCase() === 'true';
 
 /** Normalize the CF Access team domain into a full https origin (no trailing slash). */
@@ -73,9 +78,19 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 });
 
 // --- CORS ------------------------------------------------------------------
-function corsHeaders(): HeadersInit {
+/** Pick the Access-Control-Allow-Origin value for this request from the allowlist. */
+function resolveOrigin(req: Request): string {
+  if (ALLOWED_ORIGINS.includes('*')) return '*';
+  const reqOrigin = req.headers.get('Origin') ?? '';
+  if (reqOrigin && ALLOWED_ORIGINS.includes(reqOrigin)) return reqOrigin;
+  // Non-allowlisted origin: echo the first configured one so the browser blocks
+  // it (correct) rather than us accidentally allowing everything.
+  return ALLOWED_ORIGINS[0] ?? '*';
+}
+
+function corsHeaders(req: Request): HeadersInit {
   return {
-    'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
+    'Access-Control-Allow-Origin': resolveOrigin(req),
     Vary: 'Origin',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, cf-access-jwt-assertion',
@@ -83,10 +98,10 @@ function corsHeaders(): HeadersInit {
   };
 }
 
-function json(body: unknown, status = 200): Response {
+function json(req: Request, body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
   });
 }
 
@@ -197,7 +212,9 @@ async function mintToken(doctor: { dr_id: number; doctor_email: string | null },
 
 // --- handlers --------------------------------------------------------------
 async function handleToken(req: Request, url: URL): Promise<Response> {
-  if (!JWT_SECRET) return json({ success: false, error: 'PORTAL_JWT_SECRET is not configured' }, 500);
+  if (!JWT_SECRET) {
+    return json(req, { success: false, error: 'PORTAL_JWT_SECRET is not configured' }, 500);
+  }
 
   let body: Record<string, unknown> = {};
   try {
@@ -207,7 +224,7 @@ async function handleToken(req: Request, url: URL): Promise<Response> {
   }
 
   const email = await resolveEmail(req, body, url);
-  if (!email) return json({ success: false, error: 'Cloudflare Access verification failed' }, 401);
+  if (!email) return json(req, { success: false, error: 'Cloudflare Access verification failed' }, 401);
 
   const isAdmin = email === ADMIN_EMAIL;
 
@@ -217,38 +234,39 @@ async function handleToken(req: Request, url: URL): Promise<Response> {
     if (!impersonateDrId || Number.isNaN(impersonateDrId)) {
       // Admin without a selected doctor — return identity so the portal can show
       // the doctor picker (list comes from GET /doctors).
-      return json({ success: true, token: null, isAdmin: true, doctor: null });
+      return json(req, { success: true, token: null, isAdmin: true, doctor: null });
     }
     doctor = await getDoctorById(impersonateDrId);
   } else {
     doctor = await getDoctorByEmail(email);
   }
 
-  if (!doctor) return json({ success: false, error: 'Doctor not found' }, 404);
+  if (!doctor) return json(req, { success: false, error: 'Doctor not found' }, 404);
 
   const token = await mintToken(doctor, email);
-  return json({ success: true, token, isAdmin, doctor });
+  return json(req, { success: true, token, isAdmin, doctor });
 }
 
 async function handleDoctors(req: Request, url: URL): Promise<Response> {
   const email = await resolveEmail(req, {}, url);
-  if (!email) return json({ success: false, error: 'Cloudflare Access verification failed' }, 401);
-  if (email !== ADMIN_EMAIL) return json({ success: false, error: 'Admin access required' }, 403);
+  if (!email) return json(req, { success: false, error: 'Cloudflare Access verification failed' }, 401);
+  if (email !== ADMIN_EMAIL) return json(req, { success: false, error: 'Admin access required' }, 403);
   const doctors = await getAllDoctors();
-  return json({ success: true, doctors });
+  return json(req, { success: true, doctors });
 }
 
 // --- entry -----------------------------------------------------------------
 Deno.serve(async (req: Request): Promise<Response> => {
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders() });
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(req) });
 
   const url = new URL(req.url);
   try {
     if (req.method === 'POST' && url.pathname.endsWith('/token')) return await handleToken(req, url);
     if (req.method === 'GET' && url.pathname.endsWith('/doctors')) return await handleDoctors(req, url);
-    return json({ success: false, error: 'Not found' }, 404);
+    return json(req, { success: false, error: 'Not found' }, 404);
   } catch (err) {
     return json(
+      req,
       { success: false, error: err instanceof Error ? err.message : 'Internal error' },
       500
     );
