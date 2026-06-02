@@ -1,6 +1,13 @@
 /**
  * API Utility Functions
  * Shared data loading functions with proper TypeScript types
+ *
+ * Reads target the RAW Supabase mirror (snake_case clinic schema) under RLS,
+ * scoped to the doctor by the minted JWT (see lib/supabase.ts). PostgREST
+ * resource-embedding is intentionally NOT used — the mirror has no FK
+ * constraints (the failover sink upserts coalesced changes without guaranteeing
+ * parent-before-child order), so we fetch related tables separately and join in
+ * JS. Writes are disabled in Phase 1 (the mirror is read-only for the portal).
  */
 
 import { supabase } from './supabase';
@@ -9,7 +16,6 @@ import type {
   AlignerSetWithDetails,
   AlignerBatch,
   AlignerNote,
-  AlignerSetPhoto,
   Work,
   Patient,
   WorkDataMap,
@@ -66,96 +72,36 @@ export function clearDashboardCache(drId?: number): void {
 }
 
 // =============================================================================
-// DASHBOARD API (Optimized with Deep Join)
+// SHARED HELPERS
 // =============================================================================
 
 /**
- * Fetch all aligner sets with work and patient data in a single query
- * Uses Supabase deep joins to eliminate waterfall requests
+ * Fetch all batches for a list of set ids and group them by aligner_set_id.
+ * One query replaces the old per-set embedded `aligner_batches(...)` select.
  */
-export async function fetchAlignerSetsWithDetails(
-  drId: number,
-  useCache = true
-): Promise<AlignerSetWithDetails[]> {
-  const cacheKey = `dashboard_cases_${drId}`;
-
-  // Check cache first
-  if (useCache) {
-    const cached = getCached<AlignerSetWithDetails[]>(cacheKey);
-    if (cached) return cached;
-  }
+async function fetchBatchesForSets(
+  setIds: number[]
+): Promise<Record<number, AlignerBatch[]>> {
+  const map: Record<number, AlignerBatch[]> = {};
+  if (setIds.length === 0) return map;
 
   const { data, error } = await supabase
-    .from('aligner_sets')
-    .select(`
-      *,
-      aligner_batches (
-        aligner_batch_id,
-        batch_sequence,
-        delivered_to_patient_date,
-        upper_aligner_count,
-        lower_aligner_count
-      ),
-      aligner_set_payments (
-        total_paid,
-        balance,
-        payment_status
-      ),
-      work!inner (
-        work_id,
-        type_of_work,
-        patients (
-          person_id,
-          patient_name,
-          phone
-        )
-      )
-    `)
-    .eq('aligner_dr_id', drId)
-    .order('creation_date', { ascending: false });
+    .from('aligner_batches')
+    .select('*')
+    .in('aligner_set_id', setIds)
+    .order('batch_sequence', { ascending: true });
 
   if (error) throw error;
 
-  const result = (data as AlignerSetWithDetails[]) || [];
-
-  // Cache the result
-  setCache(cacheKey, result);
-
-  return result;
+  (data as AlignerBatch[] | null)?.forEach((batch) => {
+    (map[batch.aligner_set_id] ||= []).push(batch);
+  });
+  return map;
 }
 
 // =============================================================================
-// LEGACY API FUNCTIONS (kept for CaseDetail page)
+// WORK + PATIENT LOOKUPS
 // =============================================================================
-
-/**
- * Fetch all aligner sets for a doctor with related data
- * @deprecated Use fetchAlignerSetsWithDetails for Dashboard
- */
-export async function fetchAlignerSets(drId: number): Promise<AlignerSet[]> {
-  const { data, error } = await supabase
-    .from('aligner_sets')
-    .select(`
-      *,
-      aligner_batches (
-        aligner_batch_id,
-        batch_sequence,
-        delivered_to_patient_date,
-        upper_aligner_count,
-        lower_aligner_count
-      ),
-      aligner_set_payments (
-        total_paid,
-        balance,
-        payment_status
-      )
-    `)
-    .eq('aligner_dr_id', drId)
-    .order('creation_date', { ascending: false });
-
-  if (error) throw error;
-  return (data as AlignerSet[]) || [];
-}
 
 /**
  * Fetch work records by work IDs
@@ -164,7 +110,7 @@ export async function fetchWorkRecords(workIds: number[]): Promise<Work[]> {
   if (!workIds || workIds.length === 0) return [];
 
   const { data, error } = await supabase
-    .from('work')
+    .from('works')
     .select('work_id, person_id, type_of_work')
     .in('work_id', workIds);
 
@@ -198,20 +144,20 @@ export async function fetchWorkWithPatients(workIds: number[]): Promise<WorkData
   const workRecords = await fetchWorkRecords(workIds);
 
   // Get unique person_ids from work records
-  const personIds = [...new Set(workRecords.map(w => w.person_id))];
+  const personIds = [...new Set(workRecords.map((w) => w.person_id))];
 
   // Get patient records
   const patientRecords = await fetchPatients(personIds);
 
   // Create patient lookup map
   const patientMap: Record<number, Patient> = {};
-  patientRecords.forEach(p => {
+  patientRecords.forEach((p) => {
     patientMap[p.person_id] = p;
   });
 
   // Combine work and patient data
   const workData: WorkDataMap = {};
-  workRecords.forEach(w => {
+  workRecords.forEach((w) => {
     workData[w.work_id] = {
       ...w,
       patients: patientMap[w.person_id] || null,
@@ -220,6 +166,136 @@ export async function fetchWorkWithPatients(workIds: number[]): Promise<WorkData
 
   return workData;
 }
+
+/**
+ * Fetch work data by work ID
+ */
+export async function fetchWork(workId: number): Promise<Work | null> {
+  const { data, error } = await supabase
+    .from('works')
+    .select('work_id, person_id, type_of_work')
+    .eq('work_id', workId)
+    .single();
+
+  if (error) throw error;
+  return data as Work | null;
+}
+
+/**
+ * Fetch patient data by person ID
+ */
+export async function fetchPatient(personId: number): Promise<Patient | null> {
+  const { data, error } = await supabase
+    .from('patients')
+    .select('person_id, patient_name, first_name, last_name, phone')
+    .eq('person_id', personId)
+    .single();
+
+  if (error) throw error;
+  return data as Patient | null;
+}
+
+// =============================================================================
+// DASHBOARD API
+// =============================================================================
+
+/**
+ * Fetch all aligner sets for a doctor with work + patient + batches attached.
+ * Sets are read by aligner_dr_id; related works/patients/batches are fetched
+ * separately and joined in JS (no PostgREST embedding).
+ */
+export async function fetchAlignerSetsWithDetails(
+  drId: number,
+  useCache = true
+): Promise<AlignerSetWithDetails[]> {
+  const cacheKey = `dashboard_cases_${drId}`;
+
+  if (useCache) {
+    const cached = getCached<AlignerSetWithDetails[]>(cacheKey);
+    if (cached) return cached;
+  }
+
+  const { data, error } = await supabase
+    .from('aligner_sets')
+    .select('*')
+    .eq('aligner_dr_id', drId)
+    .order('creation_date', { ascending: false });
+
+  if (error) throw error;
+  const sets = (data as AlignerSet[]) || [];
+
+  const workIds = [...new Set(sets.map((s) => s.work_id))];
+  const setIds = sets.map((s) => s.aligner_set_id);
+  const [workMap, batchMap] = await Promise.all([
+    fetchWorkWithPatients(workIds),
+    fetchBatchesForSets(setIds),
+  ]);
+
+  const result: AlignerSetWithDetails[] = sets.map((set) => {
+    const work = workMap[set.work_id];
+    return {
+      ...set,
+      aligner_batches: batchMap[set.aligner_set_id] || [],
+      work: {
+        work_id: set.work_id,
+        type_of_work: work?.type_of_work ?? null,
+        patients: work?.patients ?? null,
+      },
+    };
+  });
+
+  setCache(cacheKey, result);
+  return result;
+}
+
+/**
+ * Fetch all aligner sets for a doctor with batches attached.
+ * @deprecated Use fetchAlignerSetsWithDetails for Dashboard
+ */
+export async function fetchAlignerSets(drId: number): Promise<AlignerSet[]> {
+  const { data, error } = await supabase
+    .from('aligner_sets')
+    .select('*')
+    .eq('aligner_dr_id', drId)
+    .order('creation_date', { ascending: false });
+
+  if (error) throw error;
+  const sets = (data as AlignerSet[]) || [];
+
+  const batchMap = await fetchBatchesForSets(sets.map((s) => s.aligner_set_id));
+  return sets.map((set) => ({
+    ...set,
+    aligner_batches: batchMap[set.aligner_set_id] || [],
+  }));
+}
+
+/**
+ * Fetch sets for a specific work ID and doctor, with batches attached.
+ */
+export async function fetchSetsForWork(
+  workId: number,
+  drId: number
+): Promise<AlignerSet[]> {
+  const { data, error } = await supabase
+    .from('aligner_sets')
+    .select('*')
+    .eq('work_id', workId)
+    .eq('aligner_dr_id', drId)
+    .order('set_sequence', { ascending: true });
+
+  if (error) throw error;
+  const sets = (data as AlignerSet[]) || [];
+
+  const batchMap = await fetchBatchesForSets(sets.map((s) => s.aligner_set_id));
+  return sets.map((set) => ({
+    ...set,
+    aligner_batches: batchMap[set.aligner_set_id] || [],
+  }));
+}
+
+// =============================================================================
+// BATCHES / NOTES
+// =============================================================================
 
 /**
  * Fetch batches for a specific aligner set
@@ -249,118 +325,38 @@ export async function fetchNotes(setId: number): Promise<AlignerNote[]> {
   return (data as AlignerNote[]) || [];
 }
 
-/**
- * Fetch photos for a specific aligner set (with presigned URLs from Edge Function)
- */
-export async function fetchPhotos(setId: number): Promise<AlignerSetPhoto[]> {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const response = await fetch(
-    `${supabaseUrl}/functions/v1/aligner-photo-get-urls?setId=${setId}`,
-    {
-      headers: {
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-      },
-    }
-  );
+// =============================================================================
+// WRITES — disabled in Phase 1
+//
+// The portal reads a read-only RLS mirror; direct writes would be overwritten by
+// the next forward sync and never reach the source of truth. Doctor-scoped write
+// endpoints on the main app land in Phase 2. These throw if invoked so a stray
+// call surfaces loudly rather than silently no-op'ing.
+// =============================================================================
 
-  if (!response.ok) {
-    throw new Error('Failed to load photos');
-  }
-
-  const result = await response.json();
-  return (result.photos as AlignerSetPhoto[]) || [];
-}
+const WRITES_DISABLED_MESSAGE =
+  'Editing is temporarily unavailable while the portal is being updated.';
 
 /**
- * Add a note to an aligner set
+ * Add a note to an aligner set (Phase 2).
  */
 export async function createNote(
-  setId: number,
-  noteText: string,
-  noteType: NoteType = 'Doctor'
+  _setId: number,
+  _noteText: string,
+  _noteType: NoteType = 'Doctor'
 ): Promise<AlignerNote | null> {
-  const { data, error } = await supabase
-    .from('aligner_notes')
-    .insert({
-      aligner_set_id: setId,
-      note_type: noteType,
-      note_text: noteText.trim(),
-      is_read: false,
-    })
-    .select();
-
-  if (error) throw error;
-  return (data?.[0] as AlignerNote) ?? null;
+  throw new Error(WRITES_DISABLED_MESSAGE);
 }
 
 /**
- * Update days per aligner for a batch
+ * Update days per aligner for a batch (Phase 2).
  */
-export async function updateBatchDays(batchId: number, days: number): Promise<void> {
-  const { error } = await supabase
-    .from('aligner_batches')
-    .update({ days: parseInt(String(days), 10) })
-    .eq('aligner_batch_id', batchId);
-
-  if (error) throw error;
-}
-
-/**
- * Fetch work data by work ID
- */
-export async function fetchWork(workId: number): Promise<Work | null> {
-  const { data, error } = await supabase
-    .from('work')
-    .select('work_id, person_id, type_of_work')
-    .eq('work_id', workId)
-    .single();
-
-  if (error) throw error;
-  return data as Work | null;
-}
-
-/**
- * Fetch patient data by person ID
- */
-export async function fetchPatient(personId: number): Promise<Patient | null> {
-  const { data, error } = await supabase
-    .from('patients')
-    .select('person_id, patient_name, first_name, last_name, phone')
-    .eq('person_id', personId)
-    .single();
-
-  if (error) throw error;
-  return data as Patient | null;
-}
-
-/**
- * Fetch sets for a specific work ID and doctor
- */
-export async function fetchSetsForWork(
-  workId: number,
-  drId: number
-): Promise<AlignerSet[]> {
-  const { data, error } = await supabase
-    .from('aligner_sets')
-    .select(`
-      *,
-      aligner_batches (count),
-      aligner_set_payments (
-        total_paid,
-        balance,
-        payment_status
-      )
-    `)
-    .eq('work_id', workId)
-    .eq('aligner_dr_id', drId)
-    .order('set_sequence', { ascending: true });
-
-  if (error) throw error;
-  return (data as AlignerSet[]) || [];
+export async function updateBatchDays(_batchId: number, _days: number): Promise<void> {
+  throw new Error(WRITES_DISABLED_MESSAGE);
 }
 
 // =============================================================================
-// CASE DETAIL API (Optimized with Deep Join)
+// CASE DETAIL API
 // =============================================================================
 
 /**
@@ -372,68 +368,44 @@ export interface CaseDetailData {
 }
 
 /**
- * Aligner set with full batches data (not just count)
+ * Aligner set with full batches data
  */
 export interface AlignerSetWithBatches extends AlignerSet {
   aligner_batches: AlignerBatch[];
 }
 
 /**
- * Fetch complete case detail in a single query
- * Replaces: fetchWork + fetchPatient + fetchSetsForWork + loadBatches
+ * Fetch complete case detail: work + patient + sets + batches for a doctor.
+ * Sets are read by work_id + aligner_dr_id; work/patient/batches are fetched
+ * separately and joined in JS.
  */
 export async function fetchCaseDetail(
   workId: number,
   drId: number
 ): Promise<CaseDetailData | null> {
-  // Single query: work + patient + sets + batches + payments
   const { data, error } = await supabase
     .from('aligner_sets')
-    .select(`
-      *,
-      aligner_batches (
-        aligner_batch_id,
-        aligner_set_id,
-        batch_sequence,
-        days,
-        delivered_to_patient_date,
-        upper_aligner_count,
-        lower_aligner_count
-      ),
-      aligner_set_payments (
-        total_paid,
-        balance,
-        payment_status
-      ),
-      work!inner (
-        work_id,
-        person_id,
-        type_of_work,
-        patients (
-          person_id,
-          patient_name,
-          first_name,
-          last_name,
-          phone
-        )
-      )
-    `)
+    .select('*')
     .eq('work_id', workId)
     .eq('aligner_dr_id', drId)
     .order('set_sequence', { ascending: true });
 
   if (error) throw error;
-  if (!data || data.length === 0) return null;
+  const sets = (data as AlignerSet[]) || [];
+  if (sets.length === 0) return null;
 
-  // Extract work data from first set (same for all sets in this work)
-  const firstSet = data[0] as AlignerSetWithBatches & { work: Work & { patients: Patient | null } };
-  const work = firstSet.work;
+  const workMap = await fetchWorkWithPatients([workId]);
+  const work = workMap[workId];
+  if (!work) return null; // preserves the old INNER-join behaviour
 
-  // Map sets without the nested work object
-  const sets: AlignerSetWithBatches[] = data.map((set: AlignerSetWithBatches & { work: unknown }) => {
-    const { work: _work, ...setData } = set;
-    return setData as AlignerSetWithBatches;
-  });
+  const batchMap = await fetchBatchesForSets(sets.map((s) => s.aligner_set_id));
+  const setsWithBatches: AlignerSetWithBatches[] = sets.map((set) => ({
+    ...set,
+    aligner_batches: batchMap[set.aligner_set_id] || [],
+  }));
 
-  return { work, sets };
+  return {
+    work: { ...work, patients: work.patients ?? null },
+    sets: setsWithBatches,
+  };
 }

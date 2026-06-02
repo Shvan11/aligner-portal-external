@@ -4,7 +4,13 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, getDoctorEmail, isAdmin, getImpersonatedDoctorId } from '../lib/supabase';
+import {
+  getDoctorEmail,
+  getCfToken,
+  isAdmin,
+  getImpersonatedDoctorId,
+  establishPortalSession,
+} from '../lib/supabase';
 import type { AlignerDoctor } from '../types';
 
 /**
@@ -57,8 +63,9 @@ export function useAuthenticatedDoctor(
       try {
         // Get doctor email from Cloudflare Access JWT or URL parameter
         const email = getDoctorEmail();
+        const cfToken = getCfToken();
 
-        if (!email) {
+        if (!email && !cfToken) {
           if (isMounted) {
             setError(
               'Authentication failed. No email found.\n\n' +
@@ -70,52 +77,44 @@ export function useAuthenticatedDoctor(
           return;
         }
 
-        // Check if admin
-        if (isAdmin(email)) {
-          if (isMounted) {
-            setAdminEmail(email);
-          }
+        const admin = isAdmin(email);
 
-          // Check if admin has previously selected a doctor to impersonate
+        // Admin flow — may impersonate a previously-selected doctor.
+        if (admin) {
+          if (isMounted) setAdminEmail(email);
+
           const impersonatedDrId = getImpersonatedDoctorId();
-          if (impersonatedDrId) {
-            // Load the impersonated doctor
-            const { data: impersonatedDoc, error: impError } = await supabase
-              .from('aligner_doctors')
-              .select('*')
-              .eq('dr_id', impersonatedDrId)
-              .single();
+          // Mint a token scoped to the impersonated doctor (or an identity-only
+          // token when none is selected yet).
+          const { doctor: resolved } = await establishPortalSession({
+            cfToken,
+            email,
+            impersonateDrId: impersonatedDrId ?? undefined,
+          });
 
-            if (!impError && impersonatedDoc && isMounted) {
-              setImpersonatedDoctor(impersonatedDoc as AlignerDoctor);
-              setDoctor(impersonatedDoc as AlignerDoctor);
-            }
+          if (resolved && isMounted) {
+            setImpersonatedDoctor(resolved);
+            setDoctor(resolved);
           } else if (requireDoctor && isMounted) {
-            // Admin hasn't selected a doctor yet
             setError('admin_no_doctor_selected');
           }
 
-          if (isMounted) {
-            setLoading(false);
-          }
+          if (isMounted) setLoading(false);
           return;
         }
 
-        // Regular doctor authentication
-        const { data, error: queryError } = await supabase
-          .from('aligner_doctors')
-          .select('*')
-          .eq('doctor_email', email.toLowerCase())
-          .single();
+        // Regular doctor — the main app maps the verified identity to a dr_id
+        // and mints a scoped token; the resolved doctor row comes back with it.
+        const { doctor: resolved } = await establishPortalSession({ cfToken, email });
 
-        if (queryError || !data) {
+        if (!resolved) {
           if (isMounted) {
             setError(
               `Doctor not found: ${email}.\n\nPlease contact administrator to add your email to the system.`
             );
           }
         } else if (isMounted) {
-          setDoctor(data as AlignerDoctor);
+          setDoctor(resolved);
         }
       } catch (err) {
         if (isMounted) {
@@ -136,20 +135,32 @@ export function useAuthenticatedDoctor(
     };
   }, [requireDoctor]);
 
-  // Handle admin doctor selection
+  // Handle admin doctor selection — re-mint the Supabase token scoped to the
+  // chosen doctor so RLS returns that doctor's rows.
   const handleAdminDoctorSelect = useCallback(
     async (
       selectedDoctor: AlignerDoctor | null
     ): Promise<{ success: boolean; doctor: AlignerDoctor | null }> => {
+      const cfToken = getCfToken();
+      const email = getDoctorEmail();
+
       if (!selectedDoctor) {
+        // Clear impersonation: identity-only token (no rows until one is picked).
+        await establishPortalSession({ cfToken, email });
         setImpersonatedDoctor(null);
         setDoctor(null);
         return { success: true, doctor: null };
       }
 
-      setImpersonatedDoctor(selectedDoctor);
-      setDoctor(selectedDoctor);
-      return { success: true, doctor: selectedDoctor };
+      const { doctor: resolved } = await establishPortalSession({
+        cfToken,
+        email,
+        impersonateDrId: selectedDoctor.dr_id,
+      });
+      const effective = resolved ?? selectedDoctor;
+      setImpersonatedDoctor(effective);
+      setDoctor(effective);
+      return { success: true, doctor: effective };
     },
     []
   );

@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, type ChangeEvent } from 'react';
-import { supabase } from '../../lib/supabase';
+import { fetchAdminDoctors } from '../../lib/supabase';
 import type { AdminDoctorSelectorProps, AlignerDoctorMinimal } from '../../types';
 
 const AdminDoctorSelector: React.FC<AdminDoctorSelectorProps> = ({ onDoctorSelect }) => {
@@ -23,14 +23,9 @@ const AdminDoctorSelector: React.FC<AdminDoctorSelectorProps> = ({ onDoctorSelec
   const loadDoctors = async (): Promise<void> => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('aligner_doctors')
-        .select('dr_id, doctor_name, doctor_email')
-        .neq('doctor_email', 'shwan.orthodontics@gmail.com') // Exclude admin
-        .order('doctor_name');
-
-      if (error) throw error;
-      setDoctors((data as AlignerDoctorMinimal[]) || []);
+      const data = await fetchAdminDoctors();
+      // Exclude the admin's own account from the impersonation list
+      setDoctors(data.filter(d => d.doctor_email !== 'shwan.orthodontics@gmail.com'));
     } catch {
       // Error loading doctors
     } finally {

@@ -1,45 +1,15 @@
 /**
- * BatchesSection - Batches display and editing
+ * BatchesSection - Batches display (read-only, Phase 1)
+ *
+ * Editing "days per aligner" writes to the source-of-truth DB, which the portal
+ * cannot do against the read-only mirror; the editor returns in Phase 2.
  */
 
-import React, { useState, type ChangeEvent } from 'react';
+import React from 'react';
 import { formatDate } from '../../lib/supabase';
-import { useToast } from '../../contexts/ToastContext';
 import type { BatchesSectionProps } from '../../types';
 
-const BatchesSection: React.FC<BatchesSectionProps> = ({ batches, onUpdateDays }) => {
-  const toast = useToast();
-  const [editingDays, setEditingDays] = useState<Record<number, boolean>>({});
-  const [daysValues, setDaysValues] = useState<Record<number, string>>({});
-
-  const handleStartEdit = (batchId: number, currentDays: number | null | undefined): void => {
-    setEditingDays(prev => ({ ...prev, [batchId]: true }));
-    setDaysValues(prev => ({ ...prev, [batchId]: currentDays?.toString() || '' }));
-  };
-
-  const handleSave = async (batchId: number): Promise<void> => {
-    const newDays = parseInt(daysValues[batchId], 10);
-    if (isNaN(newDays) || newDays < 1) {
-      toast.warning('Please enter a valid number of days (minimum 1)');
-      return;
-    }
-
-    await onUpdateDays(batchId, newDays);
-    setEditingDays(prev => ({ ...prev, [batchId]: false }));
-  };
-
-  const handleCancel = (batchId: number): void => {
-    setEditingDays(prev => ({ ...prev, [batchId]: false }));
-    setDaysValues(prev => ({ ...prev, [batchId]: '' }));
-  };
-
-  const handleDaysChange = (batchId: number, e: ChangeEvent<HTMLInputElement>): void => {
-    setDaysValues(prev => ({
-      ...prev,
-      [batchId]: e.target.value,
-    }));
-  };
-
+const BatchesSection: React.FC<BatchesSectionProps> = ({ batches }) => {
   return (
     <div className="batches-section">
       <h4>Batches</h4>
@@ -82,46 +52,7 @@ const BatchesSection: React.FC<BatchesSectionProps> = ({ batches, onUpdateDays }
               <div className="batch-info-item">
                 <i className="fas fa-clock"></i>
                 <span>Days per Aligner: </span>
-                {editingDays[batch.aligner_batch_id] ? (
-                  <div className="days-editor">
-                    <input
-                      type="number"
-                      className="days-input"
-                      value={daysValues[batch.aligner_batch_id]}
-                      onChange={e => handleDaysChange(batch.aligner_batch_id, e)}
-                      min="1"
-                    />
-                    <button
-                      className="days-save-btn"
-                      onClick={() => handleSave(batch.aligner_batch_id)}
-                    >
-                      Save
-                    </button>
-                    <button
-                      className="btn-cancel"
-                      onClick={() => handleCancel(batch.aligner_batch_id)}
-                      style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <strong>{batch.days || 'N/A'}</strong>
-                    <button
-                      onClick={() => handleStartEdit(batch.aligner_batch_id, batch.days)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--portal-primary)',
-                        cursor: 'pointer',
-                        marginLeft: '0.5rem',
-                      }}
-                    >
-                      <i className="fas fa-edit"></i>
-                    </button>
-                  </>
-                )}
+                <strong>{batch.days || 'N/A'}</strong>
               </div>
               <div className="batch-info-item">
                 <i className="fas fa-hourglass-half"></i>

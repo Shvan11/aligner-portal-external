@@ -1,56 +1,20 @@
 /**
- * NotesSection - Notes display and editing
+ * NotesSection - Notes display (read-only timeline, Phase 1)
+ *
+ * Adding notes writes to the source-of-truth DB, which the portal cannot do
+ * directly against the read-only mirror; the add-note form returns in Phase 2.
  */
 
-import React, { type ChangeEvent } from 'react';
+import React from 'react';
 import { formatDateTime } from '../../lib/supabase';
 import type { NotesSectionProps } from '../../types';
 
-const NotesSection: React.FC<NotesSectionProps> = ({
-  setId,
-  notes,
-  showAddNote,
-  noteText,
-  doctorName,
-  onToggleAddNote,
-  onNoteTextChange,
-  onAddNote,
-}) => {
-  const handleTextChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
-    onNoteTextChange(e.target.value);
-  };
-
+const NotesSection: React.FC<NotesSectionProps> = ({ notes, doctorName }) => {
   return (
     <div className="notes-section">
       <div className="notes-header">
         <h3>Communication</h3>
-        {!showAddNote && (
-          <button className="btn-add-note" onClick={() => onToggleAddNote(true)}>
-            <i className="fas fa-plus"></i>
-            Add Note
-          </button>
-        )}
       </div>
-
-      {showAddNote && (
-        <div className="add-note-form">
-          <textarea
-            className="note-textarea"
-            placeholder="Type your message to the lab..."
-            value={noteText}
-            onChange={handleTextChange}
-          />
-          <div className="note-form-actions">
-            <button className="btn-cancel" onClick={() => onToggleAddNote(false)}>
-              Cancel
-            </button>
-            <button className="btn-submit" onClick={() => onAddNote(setId)}>
-              <i className="fas fa-paper-plane"></i>
-              Send Note
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="notes-timeline">
         {notes.length === 0 ? (

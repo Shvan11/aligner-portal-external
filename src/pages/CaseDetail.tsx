@@ -4,18 +4,16 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchCaseDetail, updateBatchDays } from '../lib/api';
+import { fetchCaseDetail } from '../lib/api';
 import type { AlignerSetWithBatches } from '../lib/api';
 import { useBatches } from '../hooks/useBatches';
 import { useNotes } from '../hooks/useNotes';
-import { usePhotos } from '../hooks/usePhotos';
 import { useAuthenticatedDoctor } from '../hooks/useAuthenticatedDoctor';
 import { useToast } from '../contexts/ToastContext';
 import PortalHeader from '../components/shared/PortalHeader';
 import AnnouncementBanner from '../components/shared/AnnouncementBanner';
 import SetCard from '../components/shared/SetCard';
-import FullscreenImageViewer from '../components/shared/FullscreenImageViewer';
-import type { AlignerSetPhoto, SelectedCase, ExpandedState, ShowAddNoteState } from '../types';
+import type { SelectedCase, ExpandedState } from '../types';
 
 const CaseDetail: React.FC = () => {
   const { workId } = useParams<{ workId: string }>();
@@ -24,8 +22,7 @@ const CaseDetail: React.FC = () => {
 
   // Use custom hooks for data management
   const { batches, loadBatches, setBatchesData } = useBatches();
-  const { notes, loadNotes, addNote: addNoteHook } = useNotes();
-  const { photos, loadPhotos } = usePhotos();
+  const { notes, loadNotes } = useNotes();
 
   // Use custom auth hook
   const {
@@ -40,17 +37,14 @@ const CaseDetail: React.FC = () => {
   const [selectedCase, setSelectedCase] = useState<SelectedCase | null>(null);
   const [sets, setSets] = useState<AlignerSetWithBatches[]>([]);
   const [expandedSets, setExpandedSets] = useState<ExpandedState>({});
-  const [showAddNote, setShowAddNote] = useState<ShowAddNoteState>({});
-  const [noteText, setNoteText] = useState<string>('');
-  const [selectedPhoto, setSelectedPhoto] = useState<AlignerSetPhoto | null>(null);
 
-  // Load case and sets data (optimized: single query)
+  // Load case and sets data
   const loadCaseData = useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
       if (!doctor?.dr_id) return;
 
-      // Single optimized query: work + patient + sets + batches + payments
+      // work + patient + sets + batches (joined client-side in fetchCaseDetail)
       const caseData = await fetchCaseDetail(parseInt(workId || '0', 10), doctor.dr_id);
 
       if (!caseData) {
@@ -75,13 +69,10 @@ const CaseDetail: React.FC = () => {
         }
       });
 
-      // Auto-expand the active set and load notes/photos in parallel
+      // Auto-expand the active set and load its notes
       const activeSet = caseData.sets.find(set => set.is_active);
       if (activeSet) {
-        await Promise.all([
-          loadNotes(activeSet.aligner_set_id),
-          loadPhotos(activeSet.aligner_set_id)
-        ]);
+        await loadNotes(activeSet.aligner_set_id);
         setExpandedSets(prev => ({ ...prev, [activeSet.aligner_set_id]: true }));
       }
     } catch {
@@ -90,7 +81,7 @@ const CaseDetail: React.FC = () => {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workId, navigate, doctor?.dr_id, loadNotes, loadPhotos, setBatchesData]);
+  }, [workId, navigate, doctor?.dr_id, loadNotes, setBatchesData]);
 
   // Load case data when doctor is authenticated
   useEffect(() => {
@@ -111,7 +102,6 @@ const CaseDetail: React.FC = () => {
         const loadPromises: Promise<unknown>[] = [];
         if (!batches[setId]) loadPromises.push(loadBatches(setId));
         if (!notes[setId]) loadPromises.push(loadNotes(setId));
-        if (!photos[setId]) loadPromises.push(loadPhotos(setId));
 
         if (loadPromises.length > 0) {
           await Promise.all(loadPromises);
@@ -119,64 +109,8 @@ const CaseDetail: React.FC = () => {
         setExpandedSets(prev => ({ ...prev, [setId]: true }));
       }
     },
-    [expandedSets, batches, notes, photos, loadBatches, loadNotes, loadPhotos]
+    [expandedSets, batches, notes, loadBatches, loadNotes]
   );
-
-  // Update days per aligner (EDITABLE!)
-  const updateDays = useCallback(
-    async (batchId: number, newDays: number): Promise<void> => {
-      try {
-        // Update using API utility
-        await updateBatchDays(batchId, newDays);
-
-        // Find which set this batch belongs to and reload
-        const batch = Object.values(batches)
-          .flat()
-          .find(b => b.aligner_batch_id === batchId);
-
-        if (batch) {
-          await loadBatches(batch.aligner_set_id);
-        }
-
-        toast.success('Days per aligner updated successfully');
-      } catch {
-        toast.error('Failed to update days per aligner');
-      }
-    },
-    [batches, loadBatches, toast]
-  );
-
-  // Add a note (EDITABLE!)
-  const addNote = useCallback(
-    async (setId: number): Promise<void> => {
-      if (!noteText.trim()) {
-        toast.warning('Please enter a note');
-        return;
-      }
-
-      try {
-        // Use custom hook to add note
-        await addNoteHook(setId, noteText, 'Doctor');
-
-        setNoteText('');
-        setShowAddNote(prev => ({ ...prev, [setId]: false }));
-        toast.success('Note added successfully');
-      } catch {
-        toast.error('Failed to add note');
-      }
-    },
-    [noteText, addNoteHook, toast]
-  );
-
-  // Handle toggle add note
-  const handleToggleAddNote = useCallback((setId: number, show: boolean): void => {
-    setShowAddNote(prev => ({ ...prev, [setId]: show }));
-  }, []);
-
-  // Handle photo click
-  const handlePhotoClick = useCallback((photo: AlignerSetPhoto): void => {
-    setSelectedPhoto(photo);
-  }, []);
 
   // Navigate back to dashboard
   const backToCases = (): void => {
@@ -277,27 +211,13 @@ const CaseDetail: React.FC = () => {
                   isExpanded={expandedSets[set.aligner_set_id] || false}
                   batches={batches[set.aligner_set_id]}
                   notes={notes[set.aligner_set_id]}
-                  photos={photos[set.aligner_set_id]}
-                  showAddNote={showAddNote[set.aligner_set_id]}
-                  noteText={noteText}
                   onToggleExpand={toggleSet}
-                  onUpdateDays={updateDays}
-                  onToggleAddNote={handleToggleAddNote}
-                  onNoteTextChange={setNoteText}
-                  onAddNote={addNote}
-                  onLoadPhotos={loadPhotos}
-                  onPhotoClick={handlePhotoClick}
                 />
               ))}
             </div>
           )}
         </div>
       </main>
-
-      {/* Fullscreen Photo Viewer */}
-      {selectedPhoto && (
-        <FullscreenImageViewer photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
-      )}
     </div>
   );
 };

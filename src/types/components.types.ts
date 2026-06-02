@@ -41,22 +41,16 @@ export interface CaseCardProps {
 // SET COMPONENTS
 // =============================================================================
 
+// Phase 1 is read-only: no photo / payment / write affordances. The photo and
+// write props were removed here (and the photo prop interfaces below are kept
+// only as type definitions for the future Phase 3 photo feature).
 export interface SetCardProps {
   set: AlignerSet;
   doctor: AlignerDoctor;
   isExpanded: boolean;
   batches: AlignerBatch[] | undefined;
   notes: AlignerNote[] | undefined;
-  photos: AlignerSetPhoto[] | undefined;
-  showAddNote: boolean | undefined;
-  noteText: string;
   onToggleExpand: (setId: number) => void;
-  onUpdateDays: (batchId: number, days: number) => Promise<void>;
-  onToggleAddNote: (setId: number, show: boolean) => void;
-  onNoteTextChange: (text: string) => void;
-  onAddNote: (setId: number) => Promise<void>;
-  onLoadPhotos: (setId: number) => Promise<AlignerSetPhoto[] | undefined>;
-  onPhotoClick: (photo: AlignerSetPhoto) => void;
 }
 
 // =============================================================================
@@ -65,7 +59,6 @@ export interface SetCardProps {
 
 export interface BatchesSectionProps {
   batches: AlignerBatch[];
-  onUpdateDays: (batchId: number, days: number) => Promise<void>;
 }
 
 // =============================================================================
@@ -73,14 +66,8 @@ export interface BatchesSectionProps {
 // =============================================================================
 
 export interface NotesSectionProps {
-  setId: number;
   notes: AlignerNote[];
-  showAddNote: boolean | undefined;
-  noteText: string;
   doctorName: string;
-  onToggleAddNote: (show: boolean) => void;
-  onNoteTextChange: (text: string) => void;
-  onAddNote: (setId: number) => void;
 }
 
 // =============================================================================
