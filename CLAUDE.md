@@ -279,36 +279,27 @@ import { formatDate, formatPatientName } from '../lib/supabase';
 
 ## CSS Architecture
 
-### CSS Variables
-All styling uses CSS custom properties defined in `styles.css`:
+**"Clinical Editorial" design system** (full token set at the top of `src/styles.css`):
 
-```css
-:root {
-  /* Primary Colors */
-  --portal-primary: #00897B;      /* Teal */
-  --portal-primary-dark: #00695C;
-  --portal-primary-light: #4DB6AC;
-
-  /* Semantic Colors */
-  --portal-success: #43A047;
-  --portal-warning: #FFA726;
-  --portal-error: #E53935;
-  --portal-accent: #1976D2;
-
-  /* Grays */
-  --portal-grey: #78909C;
-  --portal-grey-light: #ECEFF1;
-  --portal-grey-dark: #455A64;
-
-  /* Background/Cards */
-  --portal-bg: #F5F7FA;
-  --portal-card: #FFFFFF;
-
-  /* Shadows */
-  --portal-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --portal-shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.12);
-}
-```
+- **Type**: Bricolage Grotesque (`--font-display`, headings/stats/brand) + Schibsted Grotesk
+  (`--font-body`), loaded from Google Fonts in `index.html`. Every stack carries Arabic-safe
+  fallbacks (`'Segoe UI', Tahoma`) — patient names are often Arabic script.
+- **Color**: the clinic teal family (`--portal-primary` #00897B) deepened with `--portal-ink`
+  (teal-black text), `--portal-deep-1/2` (header/hero gradient band), `--portal-mint`
+  (tinted surfaces). Status colors come in pairs (`--portal-success` + `--portal-success-tint`
+  etc.) for the **tinted-badge** pattern (soft bg + strong text + status dot) — never solid
+  white-on-color badges.
+- **Elevation/shape**: teal-tinted layered shadows (`--portal-shadow-xs/-/hover/deep`), radius
+  scale (`--radius-card/panel/btn/pill`). Cards = white + 1px `--portal-hairline` + shadow-xs.
+- **Motion**: staggered `rise` reveals on load (use `animation-fill-mode: backwards`, NOT
+  `both`/`forwards` — fill-forwards would pin `transform` and kill hover lifts), progress-bar
+  sheen, pulsing status dots. **All motion collapses under `prefers-reduced-motion`.**
+- **Signature elements**: monogram avatars (`.case-avatar`, `.patient-avatar` — script-agnostic
+  first-char initials), chat-style notes (`.note-item` doctor right/teal vs `.note-item.lab-note`
+  lab left/white), the deep-teal header band with dot lattice.
+- Class names are the contract between `styles.css` and components — keep them stable. Dead
+  feature CSS (announcements, photos, payments, fullscreen viewer) was removed; recover from git
+  history if those features return.
 
 ### Class Naming
 Uses BEM-like naming with component prefixes:

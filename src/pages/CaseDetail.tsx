@@ -188,27 +188,22 @@ const CaseDetail: React.FC = () => {
           </button>
 
           <div className="patient-header-card">
-            <h2>{selectedCase.patient?.patient_name || `Work #${selectedCase.work_id}`}</h2>
-            {selectedCase.patient && (
-              <div
-                style={{
-                  marginTop: '0.5rem',
-                  fontSize: '0.95rem',
-                  color: 'var(--portal-grey)',
-                }}
-              >
-                {selectedCase.patient.phone && (
-                  <div>
-                    <strong>Phone:</strong> {selectedCase.patient.phone}
-                  </div>
-                )}
-                {selectedCase.type_of_work && (
-                  <div>
-                    <strong>Treatment:</strong> {selectedCase.type_of_work}
+            <i className="fas fa-tooth patient-watermark" aria-hidden="true"></i>
+            <div className="patient-header-row">
+              <div className="patient-avatar" aria-hidden="true">
+                {selectedCase.patient?.patient_name?.trim().charAt(0) || '#'}
+              </div>
+              <div>
+                <h2>{selectedCase.patient?.patient_name || `Work #${selectedCase.work_id}`}</h2>
+                {selectedCase.patient?.phone && (
+                  <div className="patient-header-meta">
+                    <span>
+                      <strong>Phone:</strong> {selectedCase.patient.phone}
+                    </span>
                   </div>
                 )}
               </div>
-            )}
+            </div>
           </div>
 
           {/* Sets List */}

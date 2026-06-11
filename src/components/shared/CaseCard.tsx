@@ -12,6 +12,9 @@ import type { CaseCardProps } from '../../types';
 
 const CaseCard = memo(function CaseCard({ caseData, onSelect }: CaseCardProps) {
   const activeSet = caseData.active_set;
+  const patientName = caseData.patient?.patient_name || `Work #${caseData.work_id}`;
+  // Monogram initial — works for Latin and Arabic names alike; '#' for unnamed works.
+  const initial = caseData.patient?.patient_name?.trim().charAt(0) || '#';
 
   const handleClick = (): void => {
     onSelect(caseData);
@@ -25,8 +28,13 @@ const CaseCard = memo(function CaseCard({ caseData, onSelect }: CaseCardProps) {
     <div className="case-card" onClick={handleClick}>
       {/* Header */}
       <div className="case-header">
-        <div className="case-patient-info">
-          <h3>{caseData.patient?.patient_name || `Work #${caseData.work_id}`}</h3>
+        <div className="case-patient-row">
+          <div className="case-avatar" aria-hidden="true">
+            {initial}
+          </div>
+          <div className="case-patient-info">
+            <h3>{patientName}</h3>
+          </div>
         </div>
         {caseData.active_sets > 0 ? (
           <span className="case-active-badge">Active</span>

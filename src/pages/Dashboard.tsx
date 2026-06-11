@@ -192,20 +192,39 @@ const Dashboard: React.FC = () => {
             {/* Stats */}
             <div className="dashboard-stats">
               <div className="stat-card">
-                <div className="stat-value">{cases.length}</div>
-                <div className="stat-label">Total Cases</div>
+                <div className="stat-icon" aria-hidden="true">
+                  <i className="fas fa-users"></i>
+                </div>
+                <div>
+                  <div className="stat-value">{cases.length}</div>
+                  <div className="stat-label">Total Cases</div>
+                </div>
               </div>
               <div className="stat-card">
-                <div className="stat-value" style={{ color: 'var(--portal-success)' }}>
-                  {getActiveCasesCount()}
+                <div
+                  className="stat-icon"
+                  aria-hidden="true"
+                  style={{ background: 'var(--portal-success-tint)', color: 'var(--portal-success)' }}
+                >
+                  <i className="fas fa-teeth"></i>
                 </div>
-                <div className="stat-label">Active Cases</div>
+                <div>
+                  <div className="stat-value">{getActiveCasesCount()}</div>
+                  <div className="stat-label">Active Cases</div>
+                </div>
               </div>
               <div className="stat-card">
-                <div className="stat-value" style={{ color: 'var(--portal-grey)' }}>
-                  {cases.length - getActiveCasesCount()}
+                <div
+                  className="stat-icon"
+                  aria-hidden="true"
+                  style={{ background: 'var(--portal-grey-light)', color: 'var(--portal-grey-dark)' }}
+                >
+                  <i className="fas fa-circle-check"></i>
                 </div>
-                <div className="stat-label">Completed</div>
+                <div>
+                  <div className="stat-value">{cases.length - getActiveCasesCount()}</div>
+                  <div className="stat-label">Completed</div>
+                </div>
               </div>
             </div>
 

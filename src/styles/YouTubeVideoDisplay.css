@@ -3,9 +3,10 @@
 .youtube-video-container {
   display: inline-block;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: var(--radius-panel, 12px);
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--portal-hairline, #DCE6E2);
+  box-shadow: var(--portal-shadow-xs, 0 1px 2px rgba(15, 61, 55, 0.05));
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   background: #000;
   max-width: 480px;
@@ -14,7 +15,7 @@
 
 .youtube-video-container:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--portal-shadow-hover, 0 4px 16px rgba(0, 0, 0, 0.15));
 }
 
 .youtube-video-container:focus {
