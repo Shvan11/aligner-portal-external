@@ -646,6 +646,22 @@ body {
     cursor: not-allowed;
 }
 
+.days-edit-btn {
+    background: none;
+    border: none;
+    color: var(--portal-primary);
+    cursor: pointer;
+    padding: 0.15rem 0.35rem;
+    margin-left: 0.35rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    transition: background 0.2s;
+}
+
+.days-edit-btn:hover {
+    background: var(--portal-grey-light);
+}
+
 /* ===== NOTES SECTION ===== */
 .notes-section {
     margin-top: 2rem;

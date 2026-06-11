@@ -1,6 +1,7 @@
 /**
  * SetCard - Memoized set card component for CaseDetail
- * Displays aligner set info, progress, batches, and notes (read-only, Phase 1).
+ * Displays aligner set info, progress, batches (with days editor), and notes
+ * (timeline + add-note form).
  */
 
 import { memo, useMemo, useCallback } from 'react';
@@ -17,6 +18,8 @@ const SetCard = memo(function SetCard({
   batches,
   notes,
   onToggleExpand,
+  onAddNote,
+  onUpdateDays,
 }: SetCardProps) {
   // Calculate progress
   const { progress, delivered, total } = useMemo(() => {
@@ -45,6 +48,16 @@ const SetCard = memo(function SetCard({
   const handleToggle = useCallback((): void => {
     onToggleExpand(setId);
   }, [setId, onToggleExpand]);
+
+  const handleAddNote = useCallback(
+    (noteText: string): Promise<void> => onAddNote(setId, noteText),
+    [setId, onAddNote]
+  );
+
+  const handleUpdateDays = useCallback(
+    (batchId: number, days: number): Promise<void> => onUpdateDays(setId, batchId, days),
+    [setId, onUpdateDays]
+  );
 
   return (
     <div className={`set-card ${set.is_active ? '' : 'inactive'}`}>
@@ -128,11 +141,17 @@ const SetCard = memo(function SetCard({
       {/* Expanded Content */}
       {isExpanded && (
         <>
-          {/* Batches */}
-          {batches && batches.length > 0 && <BatchesSection batches={batches} />}
+          {/* Batches (with days editor) */}
+          {batches && batches.length > 0 && (
+            <BatchesSection batches={batches} onUpdateDays={handleUpdateDays} />
+          )}
 
-          {/* Notes (read-only timeline) */}
-          <NotesSection notes={notes || []} doctorName={doctor.doctor_name} />
+          {/* Notes timeline + add-note form */}
+          <NotesSection
+            notes={notes || []}
+            doctorName={doctor.doctor_name}
+            onAddNote={handleAddNote}
+          />
         </>
       )}
     </div>

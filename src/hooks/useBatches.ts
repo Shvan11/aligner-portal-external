@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { fetchBatches } from '../lib/api';
+import { fetchBatches, updateBatchDays } from '../lib/api';
 import type { AlignerBatch, BatchesState, LoadingState, ErrorState } from '../types';
 
 /**
@@ -16,6 +16,7 @@ export interface UseBatchesReturn {
   error: ErrorState;
   loadBatches: (setId: number) => Promise<AlignerBatch[] | undefined>;
   setBatchesData: (setId: number, data: AlignerBatch[]) => void;
+  updateDays: (setId: number, batchId: number, days: number) => Promise<void>;
 }
 
 export function useBatches(): UseBatchesReturn {
@@ -48,11 +49,22 @@ export function useBatches(): UseBatchesReturn {
     setBatches(prev => ({ ...prev, [setId]: data }));
   }, []);
 
+  // Update "days per aligner" for one batch, then refresh the set's batches so the
+  // UI reflects the saved value (and any server-side recompute) from the mirror.
+  const updateDays = useCallback(
+    async (setId: number, batchId: number, days: number): Promise<void> => {
+      await updateBatchDays(batchId, days);
+      await loadBatches(setId);
+    },
+    [loadBatches]
+  );
+
   return {
     batches,
     loading,
     error,
     loadBatches,
     setBatchesData,
+    updateDays,
   };
 }

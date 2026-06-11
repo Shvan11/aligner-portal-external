@@ -1,6 +1,10 @@
 /**
  * CaseCard - Memoized case card component for Dashboard
- * Displays patient info, active set details, payment summary, and URLs
+ * Displays patient info, active set details, and URLs.
+ *
+ * Payment summary was dropped: the raw Supabase mirror has no aligner_set_payments
+ * projection (paid/balance would need to be derived from invoice tables), so
+ * showing it would render fabricated zeros. Re-add if/when payments are derived.
  */
 
 import { memo, type MouseEvent } from 'react';
@@ -8,7 +12,6 @@ import type { CaseCardProps } from '../../types';
 
 const CaseCard = memo(function CaseCard({ caseData, onSelect }: CaseCardProps) {
   const activeSet = caseData.active_set;
-  const payment = activeSet?.aligner_set_payments?.[0];
 
   const handleClick = (): void => {
     onSelect(caseData);
@@ -52,32 +55,6 @@ const CaseCard = memo(function CaseCard({ caseData, onSelect }: CaseCardProps) {
               {activeSet.remaining_upper_aligners || 0}U /{' '}
               {activeSet.remaining_lower_aligners || 0}L
             </span>
-          </div>
-        </div>
-      )}
-
-      {/* Payment Summary */}
-      {activeSet && (
-        <div className="case-payment-summary">
-          <div className="case-payment-item">
-            <div className="case-payment-label">Total Required</div>
-            <div className="case-payment-value">
-              {activeSet.set_cost ?? 0} {activeSet.currency || 'USD'}
-            </div>
-          </div>
-          <div className="case-payment-divider"></div>
-          <div className="case-payment-item">
-            <div className="case-payment-label">Total Paid</div>
-            <div className="case-payment-value paid">
-              {payment?.total_paid ?? 0} {activeSet.currency || 'USD'}
-            </div>
-          </div>
-          <div className="case-payment-divider"></div>
-          <div className="case-payment-item">
-            <div className="case-payment-label">Balance</div>
-            <div className="case-payment-value balance">
-              {payment?.balance ?? activeSet.set_cost ?? 0} {activeSet.currency || 'USD'}
-            </div>
           </div>
         </div>
       )}

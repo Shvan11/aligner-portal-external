@@ -149,11 +149,17 @@ Simple 3-route structure using React Router v7:
 
 ## Authentication
 
-### Cloudflare Access JWT
-In production, authentication uses Cloudflare Access:
-1. User authenticates via Cloudflare Access
-2. `CF_Authorization` cookie contains JWT with user email
-3. Portal decodes JWT and looks up doctor in Supabase
+### Cloudflare Access JWT → minted Supabase JWT (RLS)
+The single Supabase project is a **raw 1:1 mirror of the clinic's local Postgres** (the `failover`
+CDC sink), RLS-locked — the anon key alone returns nothing. Auth is a token exchange:
+1. User authenticates via Cloudflare Access (`CF_Authorization` cookie = signed JWT with email).
+2. The portal POSTs that JWT to the **`aligner-portal-auth` Edge Function**
+   (`{VITE_SUPABASE_URL}/functions/v1/aligner-portal-auth/token`).
+3. The Edge Function verifies it against Cloudflare's JWKS, maps the email to an aligner `dr_id`
+   (service-role lookup), and mints a short-lived Supabase JWT carrying a `dr_id` claim
+   (`role=authenticated`).
+4. supabase-js attaches that token (via the `accessToken` option); **RLS on every raw table filters
+   rows by the `dr_id` claim**. This is always-on — no clinic home-server / cloudflared dependency.
 
 ### Development/Testing
 For testing, add `?email=doctor@email.com` to URL:
@@ -178,20 +184,32 @@ Admin email: `shwan.orthodontics@gmail.com`
 
 ## Supabase Integration
 
-### Tables Used
-- `aligner_doctors` - Partner doctor accounts
-- `aligner_sets` - Aligner set records
-- `aligner_batches` - Batch records within sets
-- `aligner_notes` - Doctor/Lab notes
-- `aligner_set_photos` - Photo metadata
-- `aligner_set_payments` - Payment tracking
-- `doctor_announcements` - System announcements
-- `patients` - Patient demographics
-- `work` - Work/treatment records
+The DB is the **raw clinic mirror** (snake_case). Reads avoid PostgREST embedding (no FK constraints
+on the mirror) — related tables are fetched separately and joined in JS (`src/lib/api.ts`).
+
+### Tables read (RLS, scoped by `dr_id`)
+- `aligner_doctors`, `aligner_sets`, `aligner_batches`, `aligner_notes`, `works`, `patients`
+- RLS + `SELECT` grants for these six: **`sql/phase1-rls.sql`**.
+
+### Writes (Phase 2) → reverse-sync back to local
+A doctor can do exactly two writes, both directly on the mirror; **reverse-sync CDC v2** carries them
+to the clinic's local Postgres (whole-row LWW by `updated_at`):
+- **Add note** → `INSERT aligner_notes` (RLS forces `note_type='Doctor'` **and `is_read=false`** —
+  the column DEFAULTs to TRUE, so the insert must send it explicitly or the lab's unread badge never fires).
+- **Change days** → `UPDATE aligner_batches.days`.
+- Column-scoped grants + per-row RLS write policies: **`sql/phase2-writes.sql`**.
+- Prereq: the main app's `migrations/supabase/reverse-cdc.sql` `cdc_capture_remote()` is
+  **SECURITY DEFINER** (so a non-owner writer's edit is recorded into `change_log` without granting
+  it sync-infra privileges), and `REVERSE_SYNC_ENABLED=true` with the `reverse` sink enabled.
 
 ### Edge Functions
-- `aligner-photo-get-urls` - Generate presigned URLs for photos
-- `aligner-photo-upload-url` - Generate upload URLs for new photos
+- `aligner-portal-auth` - verifies the Cloudflare-Access JWT and mints the dr_id-scoped Supabase JWT
+  (`supabase/functions/aligner-portal-auth/index.ts`). Deploy with `verify_jwt = false`.
+
+### Parked (no raw equivalent — not built)
+- Payments (`aligner_set_payments` was a derived view), photos (`aligner_set_photos` + R2/Edge
+  pipeline, portal-owned), announcements (`doctor_announcements`, stub → `AnnouncementBanner` renders
+  nothing). Type defs for these remain in `src/types/` but are not wired up.
 
 ### Environment Variables
 ```bash
@@ -402,16 +420,14 @@ All API functions are in `src/lib/api.ts`:
 
 | Function | Description |
 |----------|-------------|
-| `fetchAlignerSets(drId)` | Get all sets for a doctor |
-| `fetchSetsForWork(workId, drId)` | Get sets for specific case |
+| `fetchAlignerSetsWithDetails(drId)` | Dashboard: all sets for a doctor + work/patient/batches (JS-joined) |
+| `fetchCaseDetail(workId, drId)` | Case page: work + patient + sets + batches |
+| `fetchSetsForWork(workId, drId)` | Get sets for a specific case |
 | `fetchBatches(setId)` | Get batches for a set |
 | `fetchNotes(setId)` | Get notes for a set |
-| `fetchPhotos(setId)` | Get photos with presigned URLs |
-| `fetchWorkRecords(workIds)` | Get work records |
-| `fetchPatients(personIds)` | Get patient records |
 | `fetchWorkWithPatients(workIds)` | Combined work + patient data |
-| `createNote(setId, text, type)` | Add a note |
-| `updateBatchDays(batchId, days)` | Update days per aligner |
+| `createNote(setId, text, type='Doctor')` | **Write** — add a doctor note (→ reverse-sync) |
+| `updateBatchDays(batchId, days)` | **Write** — change days per aligner (→ reverse-sync) |
 
 ---
 

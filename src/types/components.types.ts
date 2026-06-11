@@ -41,9 +41,9 @@ export interface CaseCardProps {
 // SET COMPONENTS
 // =============================================================================
 
-// Phase 1 is read-only: no photo / payment / write affordances. The photo and
-// write props were removed here (and the photo prop interfaces below are kept
-// only as type definitions for the future Phase 3 photo feature).
+// Phase 2 re-enables the two doctor writes (add note, change batch days); both flow
+// to the mirror and reverse-sync home. The photo prop interfaces below are kept only
+// as type definitions for the future Phase 3 photo feature (not wired up).
 export interface SetCardProps {
   set: AlignerSet;
   doctor: AlignerDoctor;
@@ -51,6 +51,8 @@ export interface SetCardProps {
   batches: AlignerBatch[] | undefined;
   notes: AlignerNote[] | undefined;
   onToggleExpand: (setId: number) => void;
+  onAddNote: (setId: number, noteText: string) => Promise<void>;
+  onUpdateDays: (setId: number, batchId: number, days: number) => Promise<void>;
 }
 
 // =============================================================================
@@ -59,6 +61,7 @@ export interface SetCardProps {
 
 export interface BatchesSectionProps {
   batches: AlignerBatch[];
+  onUpdateDays: (batchId: number, days: number) => Promise<void>;
 }
 
 // =============================================================================
@@ -68,6 +71,7 @@ export interface BatchesSectionProps {
 export interface NotesSectionProps {
   notes: AlignerNote[];
   doctorName: string;
+  onAddNote: (noteText: string) => Promise<void>;
 }
 
 // =============================================================================

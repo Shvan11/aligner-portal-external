@@ -21,8 +21,8 @@ const CaseDetail: React.FC = () => {
   const toast = useToast();
 
   // Use custom hooks for data management
-  const { batches, loadBatches, setBatchesData } = useBatches();
-  const { notes, loadNotes } = useNotes();
+  const { batches, loadBatches, setBatchesData, updateDays } = useBatches();
+  const { notes, loadNotes, addNote } = useNotes();
 
   // Use custom auth hook
   const {
@@ -110,6 +110,22 @@ const CaseDetail: React.FC = () => {
       }
     },
     [expandedSets, batches, notes, loadBatches, loadNotes]
+  );
+
+  // Add a doctor note to a set (writes to mirror → reverse-syncs to local)
+  const handleAddNote = useCallback(
+    async (setId: number, noteText: string): Promise<void> => {
+      await addNote(setId, noteText);
+    },
+    [addNote]
+  );
+
+  // Change a batch's days-per-aligner (writes to mirror → reverse-syncs to local)
+  const handleUpdateDays = useCallback(
+    async (setId: number, batchId: number, days: number): Promise<void> => {
+      await updateDays(setId, batchId, days);
+    },
+    [updateDays]
   );
 
   // Navigate back to dashboard
@@ -212,6 +228,8 @@ const CaseDetail: React.FC = () => {
                   batches={batches[set.aligner_set_id]}
                   notes={notes[set.aligner_set_id]}
                   onToggleExpand={toggleSet}
+                  onAddNote={handleAddNote}
+                  onUpdateDays={handleUpdateDays}
                 />
               ))}
             </div>

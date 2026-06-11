@@ -1,113 +1,70 @@
 # Aligner Portal — Repair Handoff
 
-> Status: **this app is currently broken by design.** The backend it read from was retired during
-> the Supabase consolidation. This guide explains what changed, the few hard constraints you must
-> design around, and the decisions left to you. It is intentionally not prescriptive — pick the
-> architecture that fits.
+> Status: **RESOLVED.** The portal was broken when the clinic collapsed its two Supabase
+> projects into one raw 1:1 mirror of local Postgres. It now reads that raw (snake_case) mirror
+> under RLS and writes back through reverse-sync CDC. This file records the final architecture and
+> the deploy steps; the living reference is `CLAUDE.md`.
 
-## What changed (why it's broken)
+## What broke, and the fix
 
-The clinic ran **two** Supabase projects: a *curated* snake_case projection the portal read
-(`patients`, `work`, `aligner_sets`, `aligner_batches`, `aligner_notes`, `aligner_doctors`, …) and a
-raw full-DB backup. These were collapsed into **one** Supabase database = a **raw 1:1 mirror** of the
-clinic's local PostgreSQL. As part of that:
+The curated snake_case projection the portal used to read was retired; the single surviving
+Supabase DB is a **raw 1:1 mirror of the clinic's local Postgres** (the `failover` CDC sink). Two
+things were rebuilt:
 
-- The curated snake_case tables are **no longer produced** (the transform sink + reverse-sync path
-  were deleted).
-- The single DB now exposes the **raw schema**: original table names (`tblpatients`, `tblwork`,
-  `tblAlignerSets`, `AlignerDoctors`, `tblAlignerNotes`, `tblAlignerBatches`) with **mixed-case
-  columns** (`PersonID`, `AlignerSetID`, `Days`, `IsActive`, …).
+1. **Reads** (`src/lib/api.ts`) now target the raw mirror's snake_case tables (`aligner_sets`,
+   `aligner_batches`, `aligner_notes`, `works`, `patients`, `aligner_doctors`) under **RLS**, scoped
+   to the doctor by a short-lived JWT that the `aligner-portal-auth` Edge Function mints from the
+   Cloudflare-Access identity (`src/lib/supabase.ts`). No clinic home-server dependency on the read
+   path. PostgREST resource-embedding is avoided (the mirror has no FK constraints) — related tables
+   are fetched separately and joined in JS.
 
-Every query in `src/lib/api.ts` and `src/hooks/useAuthenticatedDoctor.ts` targets the old names, so
-they all fail. Repointing env vars is **not** enough.
+2. **Writes** (the two doctor actions) go **directly to the mirror** and are carried back to local
+   Postgres by **reverse-sync CDC v2** (Supabase → local, whole-row last-write-wins by `updated_at`):
+   - **Add note** → `INSERT` into `aligner_notes` as a `'Doctor'` note with an **explicit
+     `is_read=false`** (the column DEFAULTs to TRUE, so omitting it would suppress the lab's unread
+     badge; the RLS policy forces false).
+   - **Change days** → `UPDATE aligner_batches.days`.
 
-## The one constraint you can't design around
+   Both tables carry `updated_at`, so they are in the reverse-sync set. The old "the next forward
+   sync overwrites mirror writes" hazard is gone: forward sync only pushes local→mirror when
+   `local.updated_at >= mirror.updated_at`, so a fresher portal edit survives until reverse sync
+   applies it home. Inserted notes get an **EVEN** `note_id` from the mirror's odd/even-split identity
+   sequence, so they never collide with local's ODD ids on apply.
 
-**The Supabase DB is a read-replica of the clinic's local Postgres, which is the source of truth.**
+## Deploy / enable runbook
 
-A forward sync continuously upserts local rows into the mirror. Therefore:
+> **All three DB steps were APPLIED to the live mirror and verified 2026-06-11** (RLS/grant matrix
+> checked, write policies exercised as the `authenticated` role incl. negative tests, and a full
+> committed note round-trip Supabase → reverse sync → local → delete → local confirmed). Kept for
+> re-provisioning / disaster recovery:
 
-- **Reads** from the mirror are fine (and keep the portal working even if the clinic box is offline —
-  that's the reason the portal uses Supabase at all).
-- **Writes made directly to the mirror are unsafe**: the next forward sync overwrites them, and they
-  never reach the source of truth. The app's write features (add note, edit batch `days`, mark read,
-  photo metadata) therefore need a real path *back to local Postgres* — they cannot just `.update()`
-  the mirror.
+1. **`sql/phase1-rls.sql`** — RLS + `SELECT` grants on the six read tables (already applied if the
+   portal currently reads). Idempotent.
+2. **Main app `migrations/supabase/reverse-cdc.sql` must be the SECURITY DEFINER build of
+   `cdc_capture_remote()`.** The `authenticated` role has no write grant on `change_log`; the capture
+   trigger records the reverse-feed entry on its behalf only because it runs as its owner. If an older
+   build is live, re-apply §3 of that file — otherwise portal writes fail
+   `permission denied for table change_log`.
+3. **`sql/phase2-writes.sql`** — column-scoped `INSERT`/`UPDATE` grants + RLS write policies that let
+   a doctor add a `'Doctor'` note and change `days` on **their own** rows, and nothing else.
 
-Two write paths exist to choose from:
-1. **Reverse sync (Supabase → local).** The DB-level loop guard was deliberately preserved
-   (`cdc_capture()` skips writes made under `SET LOCAL app.cdc_origin='reverse'`), so a reverse path
-   can be reintroduced loop-free. The old reverse modules are in git history
-   (`services/sync/sync-engine.ts`, `services/sync/reverse-sync-poller.ts`) as a reference.
-2. **Call the main app's API.** The main app is reachable off-LAN via the cloudflared tunnel
-   (`remote.shwan-orthodontics.com`). Writes could go browser → main-app API → local Postgres,
-   which keeps a single write authority.
+Plus the standing requirements: `REVERSE_SYNC_ENABLED=true` on the clinic app and the `reverse` sink
+enabled in Supabase `cdc_sink_control` (both live as of the reverse-sync v2 rollout).
 
-## What has no raw equivalent (decide what to do)
+Env (Cloudflare Pages): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (see `.env.example`). The Edge
+Function needs its own secrets (`PORTAL_JWT_SECRET`, `CF_ACCESS_*`, `PORTAL_ALLOWED_ORIGIN`, …) — see
+`supabase/functions/aligner-portal-auth/index.ts`.
 
-These tables existed only in the curated projection and are **not** in the raw mirror:
+## Parked (no raw equivalent — intentionally not built)
 
-- `aligner_set_payments` — was a derived/aggregated view. Payment data in raw lives across invoice
-  tables; you'll need to derive it (a DB view, or compute server-side) or drop the feature.
-- `aligner_set_photos` + the R2/Edge-Function photo pipeline (`aligner-photo-*`) — portal-owned,
-  never stored in local Postgres. Decide where photos live now (keep a portal-owned table/bucket the
-  mirror never touches, or push into the main app's photo pipeline).
-- `doctor_announcements` — was already a stub.
-- `set_video` (on aligner sets) — confirm whether the raw schema carries it; it may have been
-  portal-only.
+- **Payments** (`aligner_set_payments` was a derived view) — paid/balance would need deriving from
+  invoice tables. The misleading zero-value payment summary was removed from the dashboard card.
+- **Photos** (`aligner_set_photos` + R2/Edge pipeline) — portal-owned, never in local Postgres.
+- **Announcements** (`doctor_announcements`) — `AnnouncementBanner` renders nothing (stub).
 
-## Reference: old curated → raw mapping
+## Security boundary (unchanged invariant)
 
-The retired projection is the exact translation table (snake_case ⇒ raw). Use it as your starting
-reference; verify against `types/db.d.ts` (generated raw types) and
-`services/database/queries/aligner-queries.ts` (how the main app reads the same data).
-
-| curated table | raw table | column mapping (curated ⇒ raw) |
-|---|---|---|
-| `patients` | `tblpatients` | `person_id⇒PersonID`, `patient_name⇒PatientName`, `first_name⇒FirstName`, `last_name⇒LastName`, `phone⇒Phone` |
-| `work` | `tblwork` | `work_id⇒workid`, `person_id⇒PersonID`, `type_of_work⇒Typeofwork`, `addition_date⇒AdditionDate` |
-| `aligner_doctors` | `AlignerDoctors` | `dr_id⇒DrID`, `doctor_name⇒DoctorName`, `doctor_email⇒DoctorEmail`, `logo_path⇒LogoPath` |
-| `aligner_sets` | `tblAlignerSets` | `aligner_set_id⇒AlignerSetID`, `work_id⇒WorkID`, `aligner_dr_id⇒AlignerDrID`, `set_sequence⇒SetSequence`, `type⇒Type`, `upper_aligners_count⇒UpperAlignersCount`, `lower_aligners_count⇒LowerAlignersCount`, `remaining_upper_aligners⇒RemainingUpperAligners`, `remaining_lower_aligners⇒RemainingLowerAligners`, `creation_date⇒CreationDate`, `days⇒Days`, `is_active⇒IsActive`, `notes⇒Notes`, `set_url⇒SetUrl`, `set_pdf_url⇒SetPdfUrl`, `set_cost⇒SetCost`, `currency⇒Currency` |
-| `aligner_batches` | `tblAlignerBatches` | `aligner_batch_id⇒AlignerBatchID`, `aligner_set_id⇒AlignerSetID`, `batch_sequence⇒BatchSequence`, `upper_aligner_count⇒UpperAlignerCount`, `lower_aligner_count⇒LowerAlignerCount`, `manufacture_date⇒ManufactureDate`, `delivered_to_patient_date⇒DeliveredToPatientDate`, `days⇒Days`, `is_active⇒IsActive` |
-| `aligner_notes` | `tblAlignerNotes` | `note_id⇒NoteID`, `aligner_set_id⇒AlignerSetID`, `note_type⇒NoteType`, `note_text⇒NoteText`, `created_at⇒CreatedAt`, `is_edited⇒IsEdited`, `edited_at⇒EditedAt`, `is_read⇒IsRead` |
-
-> Tip: the lowest-effort way to keep most read queries unchanged is to recreate the curated
-> snake_case tables as **read-only views** over the raw tables *inside the single DB*, scoped to
-> aligner data. Whether you do that or rewrite the queries to hit raw tables directly is your call.
-
-## Security (revisit — the DB now holds everything)
-
-The mirror contains the **entire** clinic database, not just the aligner subset. The portal still
-uses a **public anon key** in the browser. So the access boundary is now critical:
-
-- Do **not** expose raw tables to the anon role. Expose only what the portal needs (curated views or
-  a dedicated schema), and keep everything else out of the API.
-- Decide how doctors are scoped to their own rows. Today auth is Cloudflare Access (email in a JWT
-  cookie) with client-side filtering by `dr_id` — that is **not** a real row boundary. Options:
-  integrate Supabase Auth so RLS can key off the doctor, sign a claim mapped to RLS, or route data
-  access through the main app's authenticated API.
-
-## Env / deployment
-
-- Repoint `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (Cloudflare Pages settings) at the
-  surviving single project, and re-issue the anon key there.
-- Recreate any Storage bucket + `aligner-photo-*` Edge Functions in that project if you keep the
-  photo feature.
-
-## Where to look (this repo, on the main app side)
-
-- `types/db.d.ts` — generated raw schema types (authoritative table/column names).
-- `services/database/queries/aligner-queries.ts` — how the main app reads aligner data from raw.
-- `migrations/pg/*_add-failover-cdc.sql` — the `cdc_capture()` function incl. the preserved
-  `app.cdc_origin='reverse'` loop guard (for a reverse-write path).
-- Git history of `services/sync/cdc/portal-sink.ts`, `services/sync/sync-fetch.ts`,
-  `services/sync/sync-engine.ts`, `services/sync/reverse-sync-poller.ts` — the exact old transform +
-  reverse logic, if you want to mirror its filtering (aligner-only patients/work, Lab-only notes).
-
-## Files that need work here
-
-- `src/lib/supabase.ts` — client + auth.
-- `src/lib/api.ts` — every read/write query.
-- `src/hooks/useAuthenticatedDoctor.ts` — doctor lookup.
-- `src/hooks/{useBatches,useNotes,usePhotos}.ts` and the photo components — depend on the above.
-- `src/types/database.types.ts` — shapes for whatever schema you settle on.
+The mirror holds the **entire** clinic DB. The portal must reach **only** the aligner subset: every
+mirror table stays without an anon/`authenticated` grant except the six read tables and the two
+write surfaces above, and RLS keys every row off the JWT's `dr_id` claim. Admin impersonation works
+by minting a token scoped to the impersonated doctor — never a blanket bypass.

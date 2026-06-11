@@ -7,7 +7,9 @@
  * resource-embedding is intentionally NOT used — the mirror has no FK
  * constraints (the failover sink upserts coalesced changes without guaranteeing
  * parent-before-child order), so we fetch related tables separately and join in
- * JS. Writes are disabled in Phase 1 (the mirror is read-only for the portal).
+ * JS. Phase 2 enables two doctor writes (add note, change batch days) directly on
+ * the mirror; reverse-sync CDC carries them home to local Postgres (see the WRITES
+ * section below and sql/phase2-writes.sql).
  */
 
 import { supabase } from './supabase';
@@ -326,33 +328,64 @@ export async function fetchNotes(setId: number): Promise<AlignerNote[]> {
 }
 
 // =============================================================================
-// WRITES — disabled in Phase 1
+// WRITES — Phase 2 (mirror writes carried back to local by reverse-sync CDC)
 //
-// The portal reads a read-only RLS mirror; direct writes would be overwritten by
-// the next forward sync and never reach the source of truth. Doctor-scoped write
-// endpoints on the main app land in Phase 2. These throw if invoked so a stray
-// call surfaces loudly rather than silently no-op'ing.
+// aligner_notes and aligner_batches both carry `updated_at`, so they are in the
+// reverse-sync set: a doctor's edit here is captured into change_log('reverse') on
+// Supabase and applied to the clinic's local Postgres (the source of truth) under
+// whole-row LWW. RLS + column-level grants (sql/phase2-writes.sql) constrain the
+// portal to exactly two writes — adding a 'Doctor' note, and changing a batch's
+// `days` — each scoped to the authenticated doctor's own rows. No clinic
+// home-server round-trip: the write lands in Supabase and drains home when the
+// reverse sink next runs (queued through an outage, never lost).
 // =============================================================================
 
-const WRITES_DISABLED_MESSAGE =
-  'Editing is temporarily unavailable while the portal is being updated.';
-
 /**
- * Add a note to an aligner set (Phase 2).
+ * Add a 'Doctor' note to an aligner set. Inserts under the dr_id-scoped JWT; RLS
+ * forces note_type='Doctor', is_read=false, and the doctor's own set. is_read MUST
+ * be sent explicitly: the column's DB default is TRUE, so omitting it would mark
+ * the note pre-read and the lab's unread badge would never fire (the RLS policy
+ * rejects anything but false, so this can't regress silently). Returns the
+ * inserted row (with its mirror-side note_id).
  */
 export async function createNote(
-  _setId: number,
-  _noteText: string,
-  _noteType: NoteType = 'Doctor'
+  setId: number,
+  noteText: string,
+  noteType: NoteType = 'Doctor'
 ): Promise<AlignerNote | null> {
-  throw new Error(WRITES_DISABLED_MESSAGE);
+  const text = noteText.trim();
+  if (!setId || !text) {
+    throw new Error('Set ID and note text are required');
+  }
+
+  const { data, error } = await supabase
+    .from('aligner_notes')
+    .insert({ aligner_set_id: setId, note_type: noteType, note_text: text, is_read: false })
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return (data as AlignerNote) ?? null;
 }
 
 /**
- * Update days per aligner for a batch (Phase 2).
+ * Update "days per aligner" for a batch. The column-level grant + RLS policy allow
+ * the authenticated doctor to change ONLY `days`, and only on their own batches.
  */
-export async function updateBatchDays(_batchId: number, _days: number): Promise<void> {
-  throw new Error(WRITES_DISABLED_MESSAGE);
+export async function updateBatchDays(batchId: number, days: number): Promise<void> {
+  if (!batchId) {
+    throw new Error('Batch ID is required');
+  }
+  if (!Number.isFinite(days) || days < 0) {
+    throw new Error('Days must be a non-negative number');
+  }
+
+  const { error } = await supabase
+    .from('aligner_batches')
+    .update({ days: Math.trunc(days) })
+    .eq('aligner_batch_id', batchId);
+
+  if (error) throw error;
 }
 
 // =============================================================================
