@@ -20,14 +20,17 @@ export default defineConfig({
     minify: true,
   },
   server: {
-    // NOT 5173: a stale Windows `netsh portproxy` rule (0.0.0.0:5173 → the old WSL
-    // NAT IP) holds that port via iphlpsvc, and under WSL mirrored networking a
-    // bind against a Windows-occupied port wedges SILENTLY — vite never errors and
-    // never prints its banner, which looks exactly like "the dev server did not
-    // start". (Same reason the main app's dev moved to 5273/3101.)
-    port: 5180,
+    port: 5173,
     // NEVER set open: true — on WSL the browser spawn (xdg-open → chrome) blocks
-    // vite's startup banner the same way. Open the printed URL manually instead.
+    // vite's startup banner: the server silently listens but never prints its URL,
+    // which looks exactly like "the dev server did not start". Open the printed
+    // URL manually instead.
+    //
+    // If this port ever wedges silently again, check for a Windows-side squatter:
+    // `netsh interface portproxy show all` + `netstat -ano | findstr :5173` — under
+    // WSL mirrored networking a bind against a Windows-occupied port hangs instead
+    // of erroring (a stale portproxy rule to the dead NAT IP did this once; deleted
+    // 2026-06-12).
     open: false,
   },
 });
