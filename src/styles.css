@@ -45,9 +45,11 @@
     --portal-shadow-hover: 0 2px 4px rgba(15, 61, 55, 0.06), 0 14px 32px rgba(15, 61, 55, 0.13);
     --portal-shadow-deep: 0 8px 28px rgba(8, 40, 36, 0.35);
 
-    /* Type (Arabic-safe fallbacks throughout) */
-    --font-display: 'Bricolage Grotesque', 'Schibsted Grotesk', 'Segoe UI', Tahoma, sans-serif;
-    --font-body: 'Schibsted Grotesk', -apple-system, 'Segoe UI', Tahoma, sans-serif;
+    /* Type (Arabic-safe fallbacks throughout). The "Variable" suffix is the
+       family name the self-hosted @fontsource-variable packages register
+       (imported in main.tsx) — not a Google Fonts name. */
+    --font-display: 'Bricolage Grotesque Variable', 'Schibsted Grotesk Variable', 'Segoe UI', Tahoma, sans-serif;
+    --font-body: 'Schibsted Grotesk Variable', -apple-system, 'Segoe UI', Tahoma, sans-serif;
 
     /* Shape */
     --radius-card: 16px;

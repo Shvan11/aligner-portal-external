@@ -282,8 +282,11 @@ import { formatDate, formatPatientName } from '../lib/supabase';
 **"Clinical Editorial" design system** (full token set at the top of `src/styles.css`):
 
 - **Type**: Bricolage Grotesque (`--font-display`, headings/stats/brand) + Schibsted Grotesk
-  (`--font-body`), loaded from Google Fonts in `index.html`. Every stack carries Arabic-safe
-  fallbacks (`'Segoe UI', Tahoma`) — patient names are often Arabic script.
+  (`--font-body`), **self-hosted** via `@fontsource-variable/*` (imported in `main.tsx`, served
+  same-origin from Cloudflare Pages — no render-blocking Google Fonts `<link>`). The variable
+  packages register the family with a `Variable` suffix, so the stacks use
+  `'Bricolage Grotesque Variable'` / `'Schibsted Grotesk Variable'`. Every stack carries
+  Arabic-safe fallbacks (`'Segoe UI', Tahoma`) — patient names are often Arabic script.
 - **Color**: the clinic teal family (`--portal-primary` #00897B) deepened with `--portal-ink`
   (teal-black text), `--portal-deep-1/2` (header/hero gradient band), `--portal-mint`
   (tinted surfaces). Status colors come in pairs (`--portal-success` + `--portal-success-tint`
@@ -428,7 +431,8 @@ All API functions are in `src/lib/api.ts`:
 - **Vite 7.2** handles TypeScript compilation
 - **React Router v7** with BrowserRouter (not data router)
 - **No console.log** - Errors silently handled or shown via toast
-- **Font Awesome** loaded from CDN in index.html
+- **Font Awesome** self-hosted via `@fortawesome/fontawesome-free` (core + solid + brands only —
+  no `far` usage), imported in `main.tsx` (not a CDN `<link>`)
 - External URLs (Cloudflare Access logout) are the only exception to SPA navigation
 
 ---

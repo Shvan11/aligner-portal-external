@@ -11,6 +11,9 @@
     "typecheck:watch": "tsc --noEmit --watch"
   },
   "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "5.2.10",
+    "@fontsource-variable/schibsted-grotesk": "5.2.8",
+    "@fortawesome/fontawesome-free": "6.4.0",
     "@supabase/supabase-js": "^2.76.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
