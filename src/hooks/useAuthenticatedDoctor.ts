@@ -10,6 +10,7 @@ import {
   isAdmin,
   getImpersonatedDoctorId,
   establishPortalSession,
+  logout,
 } from '../lib/supabase';
 import type { AlignerDoctor } from '../types';
 
@@ -144,30 +145,38 @@ export function useAuthenticatedDoctor(
       const cfToken = getCfToken();
       const email = getDoctorEmail();
 
-      if (!selectedDoctor) {
-        // Clear impersonation: identity-only token (no rows until one is picked).
-        await establishPortalSession({ cfToken, email });
-        setImpersonatedDoctor(null);
-        setDoctor(null);
-        return { success: true, doctor: null };
-      }
+      try {
+        if (!selectedDoctor) {
+          // Clear impersonation: identity-only token (no rows until one is picked).
+          await establishPortalSession({ cfToken, email });
+          setImpersonatedDoctor(null);
+          setDoctor(null);
+          return { success: true, doctor: null };
+        }
 
-      const { doctor: resolved } = await establishPortalSession({
-        cfToken,
-        email,
-        impersonateDrId: selectedDoctor.dr_id,
-      });
-      const effective = resolved ?? selectedDoctor;
-      setImpersonatedDoctor(effective);
-      setDoctor(effective);
-      return { success: true, doctor: effective };
+        const { doctor: resolved } = await establishPortalSession({
+          cfToken,
+          email,
+          impersonateDrId: selectedDoctor.dr_id,
+        });
+        const effective = resolved ?? selectedDoctor;
+        setImpersonatedDoctor(effective);
+        setDoctor(effective);
+        return { success: true, doctor: effective };
+      } catch {
+        // Token mint failed (network error, Edge Function down, etc.) — leave
+        // the previous doctor/impersonation state alone and let the caller
+        // (Dashboard) surface this via toast; `success` exists for exactly
+        // this signal.
+        return { success: false, doctor: null };
+      }
     },
     []
   );
 
   // Logout handler
   const handleLogout = useCallback((): void => {
-    window.location.href = '/cdn-cgi/access/logout';
+    logout();
   }, []);
 
   return {

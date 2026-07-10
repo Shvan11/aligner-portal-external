@@ -1,0 +1,20 @@
+# Cloudflare Pages headers (https://developers.cloudflare.com/pages/configuration/headers/)
+# Vite copies this file from public/ into dist/ verbatim on build.
+#
+# CSP is scoped to what this app actually does (verified against src/ + the
+# built dist/index.html, which has no inline scripts):
+#   script-src 'self'   — only same-origin bundled JS, no inline <script>.
+#   style-src 'unsafe-inline' — React `style={{...}}` props are used
+#     throughout (Dashboard/CaseCard/CaseDetail/BatchesSection); tightening
+#     this would need a nonce pipeline this static-file approach doesn't have.
+#   img-src img.youtube.com — SetCard/CaseCard link to YouTube thumbnails.
+#   connect-src *.supabase.co — supabase-js (REST) + the aligner-portal-auth
+#     Edge Function both live on the project's *.supabase.co origin.
+# This is a best-effort static policy, not exercised against a live Cloudflare
+# Access login — smoke-test the app after deploying if headers change.
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=(), usb=()
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://img.youtube.com; font-src 'self'; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests

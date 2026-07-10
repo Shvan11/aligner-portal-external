@@ -29,9 +29,14 @@ const BatchesSection: React.FC<BatchesSectionProps> = ({ batches, onUpdateDays }
 
   const saveEdit = useCallback(
     async (batchId: number): Promise<void> => {
-      const days = parseInt(daysValue, 10);
-      if (!Number.isFinite(days) || days < 0) {
-        toast.warning('Enter a valid number of days');
+      // Number(), not parseInt(): parseInt("12.7") silently truncates to 12
+      // with no warning, saving a value the doctor never typed. Number("12.7")
+      // correctly fails Number.isInteger below. Number("") is 0 (not NaN), so
+      // blank input needs its own explicit guard.
+      const trimmed = daysValue.trim();
+      const days = Number(trimmed);
+      if (!trimmed || !Number.isFinite(days) || !Number.isInteger(days) || days < 0) {
+        toast.warning('Enter a valid whole number of days');
         return;
       }
 

@@ -3,14 +3,10 @@
  */
 
 import React from 'react';
+import { logout } from '../../lib/supabase';
 import type { PortalHeaderProps } from '../../types';
 
 const PortalHeader: React.FC<PortalHeaderProps> = ({ doctor }) => {
-  const handleLogout = (): void => {
-    // Redirect to Cloudflare Access logout endpoint
-    window.location.href = '/cdn-cgi/access/logout';
-  };
-
   return (
     <header className="portal-header">
       <div className="portal-header-content">
@@ -22,10 +18,12 @@ const PortalHeader: React.FC<PortalHeaderProps> = ({ doctor }) => {
           </div>
         </div>
         <div className="portal-doctor-info">
-          <span className="doctor-name">
-            <i className="fas fa-user-md"></i> Dr. {doctor?.doctor_name}
-          </span>
-          <button className="logout-btn" onClick={handleLogout}>
+          {doctor && (
+            <span className="doctor-name">
+              <i className="fas fa-user-md"></i> Dr. {doctor.doctor_name}
+            </span>
+          )}
+          <button className="logout-btn" onClick={logout}>
             <i className="fas fa-sign-out-alt"></i>
             Logout
           </button>

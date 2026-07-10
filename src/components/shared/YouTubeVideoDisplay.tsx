@@ -2,7 +2,7 @@
  * YouTubeVideoDisplay - Display YouTube video with thumbnail and play button
  */
 
-import React from 'react';
+import React, { type KeyboardEvent } from 'react';
 import type { YouTubeVideoDisplayProps } from '../../types';
 import '../../styles/YouTubeVideoDisplay.css';
 
@@ -68,8 +68,21 @@ const YouTubeVideoDisplay: React.FC<YouTubeVideoDisplayProps> = ({ videoUrl }) =
     window.open(videoPageUrl, '_blank', 'noopener,noreferrer');
   };
 
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  };
+
   return (
-    <div className="youtube-video-container" onClick={handleClick} role="button" tabIndex={0}>
+    <div
+      className="youtube-video-container"
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+    >
       <div className="youtube-thumbnail-wrapper">
         <img
           src={thumbnailUrl}

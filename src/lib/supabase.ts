@@ -322,3 +322,26 @@ export function getImpersonatedDoctorId(): number | null {
 export function clearImpersonation(): void {
   sessionStorage.removeItem('admin_impersonated_doctor_id');
 }
+
+/**
+ * Clear all portal-related sessionStorage (identity, impersonation, cached
+ * dashboard case data — patient names/phones) and redirect to the Cloudflare
+ * Access logout endpoint. Centralizes the two logout call sites
+ * (useAuthenticatedDoctor, PortalHeader) so a doctor's data doesn't linger in
+ * a shared-machine tab after they explicitly log out. (Inlines the
+ * dashboard_cases_ sweep rather than importing clearDashboardCache from
+ * lib/api — that module imports `supabase` from here, so importing back
+ * would create a cycle.)
+ */
+export function logout(): void {
+  clearPortalSession();
+  sessionStorage.removeItem('doctor_email');
+  sessionStorage.removeItem('admin_impersonated_doctor_id');
+  for (let i = sessionStorage.length - 1; i >= 0; i--) {
+    const key = sessionStorage.key(i);
+    if (key?.startsWith('dashboard_cases_')) {
+      sessionStorage.removeItem(key);
+    }
+  }
+  window.location.href = '/cdn-cgi/access/logout';
+}

@@ -18,7 +18,11 @@ const Dashboard: React.FC = () => {
   const toast = useToast();
   const [cases, setCases] = useState<CaseData[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [casesLoading, setCasesLoading] = useState<boolean>(false);
+  // Starts true (not false): once auth resolves a doctor, the load-cases effect
+  // fires but only flips this inside the async loadCases body, so there'd
+  // otherwise be a render in between — doctor set, cases still [] — showing a
+  // false "No cases found" flash before the real fetch even starts.
+  const [casesLoading, setCasesLoading] = useState<boolean>(true);
 
   // Use custom auth hook
   const {
@@ -86,9 +90,12 @@ const Dashboard: React.FC = () => {
         // Clear cache for new doctor to ensure fresh data
         clearDashboardCache(selectedDoctor.dr_id);
       }
-      await baseHandleAdminDoctorSelect(selectedDoctor);
+      const result = await baseHandleAdminDoctorSelect(selectedDoctor);
+      if (!result.success) {
+        toast.error('Could not switch doctor. Please try again.');
+      }
     },
-    [baseHandleAdminDoctorSelect]
+    [baseHandleAdminDoctorSelect, toast]
   );
 
   // Navigate to case detail
@@ -146,9 +153,11 @@ const Dashboard: React.FC = () => {
           <i className="fas fa-exclamation-triangle"></i>
           <h2>Authentication Error</h2>
           <p>{error}</p>
-          <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#666' }}>
-            For testing, add ?email=doctor@example.com to the URL
-          </p>
+          {import.meta.env.DEV && (
+            <p style={{ marginTop: '1rem', fontSize: '0.875rem', color: '#666' }}>
+              For testing, add ?email=doctor@example.com to the URL
+            </p>
+          )}
           <button className="logout-btn" onClick={handleLogout} style={{ marginTop: '1.5rem' }}>
             <i className="fas fa-sign-out-alt"></i>
             Logout

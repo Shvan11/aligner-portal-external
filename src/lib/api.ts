@@ -380,12 +380,19 @@ export async function updateBatchDays(batchId: number, days: number): Promise<vo
     throw new Error('Days must be a non-negative number');
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('aligner_batches')
     .update({ days: Math.trunc(days) })
-    .eq('aligner_batch_id', batchId);
+    .eq('aligner_batch_id', batchId)
+    .select('aligner_batch_id');
 
   if (error) throw error;
+  // An update matching zero rows (RLS filtered it out, or the id is stale) is
+  // not an error from Supabase's perspective, so without checking `data` the
+  // caller would show a false "Days updated" toast while nothing changed.
+  if (!data || data.length === 0) {
+    throw new Error('Batch not found or not updatable');
+  }
 }
 
 // =============================================================================

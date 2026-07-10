@@ -4,7 +4,7 @@
  * (timeline + add-note form).
  */
 
-import { memo, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback, type KeyboardEvent } from 'react';
 import { formatDate } from '../../lib/supabase';
 import BatchesSection from './BatchesSection';
 import NotesSection from './NotesSection';
@@ -49,6 +49,16 @@ const SetCard = memo(function SetCard({
     onToggleExpand(setId);
   }, [setId, onToggleExpand]);
 
+  const handleHeaderKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>): void => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onToggleExpand(setId);
+      }
+    },
+    [setId, onToggleExpand]
+  );
+
   const handleAddNote = useCallback(
     (noteText: string): Promise<void> => onAddNote(setId, noteText),
     [setId, onAddNote]
@@ -62,7 +72,14 @@ const SetCard = memo(function SetCard({
   return (
     <div className={`set-card ${set.is_active ? '' : 'inactive'}`}>
       {/* Header */}
-      <div className="set-header" onClick={handleToggle}>
+      <div
+        className="set-header"
+        onClick={handleToggle}
+        onKeyDown={handleHeaderKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+      >
         <div className="set-title-row">
           <h3>Set #{set.set_sequence}</h3>
           {set.type && <span className="set-type-badge">{set.type}</span>}
@@ -70,9 +87,14 @@ const SetCard = memo(function SetCard({
             {set.is_active ? 'Active' : 'Inactive'}
           </span>
         </div>
-        <button className={`set-expand-btn ${isExpanded ? 'expanded' : ''}`}>
+        {/* Decorative only — the header div above owns the click/keyboard
+            interaction. This used to be a real <button> with no handler of
+            its own, relying on event bubbling to the parent div; that made it
+            a natively-focusable dead end for keyboard users (Tab landed here,
+            not on the header), so it's now a plain span. */}
+        <span className={`set-expand-btn ${isExpanded ? 'expanded' : ''}`} aria-hidden="true">
           <i className="fas fa-chevron-down"></i>
-        </button>
+        </span>
       </div>
 
       {/* Info Grid */}

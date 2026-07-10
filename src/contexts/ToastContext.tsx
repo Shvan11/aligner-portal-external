@@ -102,12 +102,14 @@ export function ToastProvider({ children }: ToastProviderProps): React.JSX.Eleme
   );
 }
 
-// Toast container component
-function ToastContainer({ toasts, onRemove }: ToastContainerProps): React.JSX.Element | null {
-  if (toasts.length === 0) return null;
-
+// Toast container component. Always rendered (not conditionally on
+// toasts.length) — a live region has to already exist in the DOM before its
+// content changes for screen readers to reliably announce it; mounting the
+// region and its first toast in the same paint risks the announcement being
+// dropped. The container itself has no visible chrome when empty.
+function ToastContainer({ toasts, onRemove }: ToastContainerProps): React.JSX.Element {
   return (
-    <div className="toast-container">
+    <div className="toast-container" role="status" aria-live="polite">
       {toasts.map(toast => (
         <Toast key={toast.id} toast={toast} onRemove={onRemove} />
       ))}

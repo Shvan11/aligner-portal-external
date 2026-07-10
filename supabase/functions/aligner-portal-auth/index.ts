@@ -108,16 +108,16 @@ function json(req: Request, body: unknown, status = 200): Response {
 // --- Cloudflare-Access verification → resolved email -----------------------
 
 /**
- * Pull the CF Access JWT from the dedicated header, body, or query. Deliberately
- * does NOT read Authorization — the Supabase gateway uses that for the anon key.
+ * Pull the CF Access JWT from the dedicated header or body. Deliberately does
+ * NOT read Authorization — the Supabase gateway uses that for the anon key —
+ * and deliberately does NOT accept a query-string token: the client never
+ * sends it that way, and a JWT in a URL ends up in access logs/referrers.
  */
-function extractCfToken(req: Request, body: Record<string, unknown>, url: URL): string | null {
+function extractCfToken(req: Request, body: Record<string, unknown>): string | null {
   const headerToken = req.headers.get('cf-access-jwt-assertion');
   if (headerToken) return headerToken.trim();
   const bodyToken = typeof body.cfToken === 'string' ? body.cfToken : null;
   if (bodyToken) return bodyToken.trim();
-  const queryToken = url.searchParams.get('cfToken');
-  if (queryToken) return queryToken.trim();
   return null;
 }
 
@@ -137,7 +137,7 @@ async function resolveEmail(
   const cfConfigured = !!teamUrl && !!cfAud;
 
   if (cfConfigured) {
-    const token = extractCfToken(req, body, url);
+    const token = extractCfToken(req, body);
     if (!token) return null;
     try {
       const { payload } = await jwtVerify(token, getCfJwks(teamUrl!), {
@@ -241,7 +241,13 @@ async function handleToken(req: Request, url: URL): Promise<Response> {
     doctor = await getDoctorByEmail(email);
   }
 
-  if (!doctor) return json(req, { success: false, error: 'Doctor not found' }, 404);
+  // Doctor not found (unknown email, or admin impersonating a stale/deleted
+  // dr_id) is a resolved state, not a transport error — soft-resolve it the
+  // same way as the no-selection case above so the client's requestToken()
+  // doesn't throw on a non-ok status. That's what let the portal's own
+  // "Doctor not found" messaging (useAuthenticatedDoctor.ts) reach the user
+  // instead of being replaced by a generic "Token request failed (404)".
+  if (!doctor) return json(req, { success: true, token: null, isAdmin, doctor: null });
 
   const token = await mintToken(doctor, email);
   return json(req, { success: true, token, isAdmin, doctor });

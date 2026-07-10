@@ -9,9 +9,11 @@ This is a **client-facing portal** that allows partner doctors to:
 - View and manage their aligner cases
 - Track aligner sets, batches, and delivery status
 - Add notes and communicate with the lab
-- Upload and view photos for aligner sets
-- Monitor payment status and view treatment progress
+- Adjust days-per-aligner on a batch
+- View treatment progress (aligners delivered vs. total)
 - Access PDF files and YouTube videos for sets
+
+(Photos and payment status are parked, not built — see Supabase Integration below.)
 
 ### Tech Stack
 - **Frontend**: React 19.2, TypeScript 5.9, Vite 7.2
@@ -23,9 +25,9 @@ This is a **client-facing portal** that allows partner doctors to:
 ### Application Scale
 | Metric | Count |
 |--------|-------|
-| React Components (TSX) | 13 |
+| React Components (TSX) | 14 |
 | Pages | 2 |
-| Custom Hooks | 4 |
+| Custom Hooks | 3 |
 | Contexts | 1 |
 | Type Definition Files | 4 |
 | CSS Files | 2 |
@@ -60,9 +62,9 @@ npm run typecheck:watch  # Watch mode
 
   /pages/                # 2 page components
     Dashboard.tsx        # Case list with stats and search
-    CaseDetail.tsx       # Case detail with sets, batches, notes, photos
+    CaseDetail.tsx       # Case detail with sets, batches, notes
 
-  /components/shared/    # 11 shared components
+  /components/shared/    # 9 shared components
     PortalHeader.tsx     # Header with branding and logout
     AnnouncementBanner.tsx # System announcements
     AdminDoctorSelector.tsx # Admin doctor impersonation
@@ -70,16 +72,13 @@ npm run typecheck:watch  # Watch mode
     SetCard.tsx          # Set card with expandable details
     BatchesSection.tsx   # Batch list with days editor
     NotesSection.tsx     # Notes timeline with add note form
-    SetPhotoGrid.tsx     # Photo grid display
-    SetPhotoUpload.tsx   # Photo upload handler
-    FullscreenImageViewer.tsx # Lightbox for photos
     YouTubeVideoDisplay.tsx # YouTube video embed
+    ErrorBoundary.tsx    # Render-crash catch-all fallback
 
-  /hooks/                # 4 custom hooks
+  /hooks/                # 3 custom hooks
     useAuthenticatedDoctor.ts # Auth + admin impersonation
     useBatches.ts        # Batch data management
     useNotes.ts          # Notes data management
-    usePhotos.ts         # Photos data management
 
   /contexts/             # 1 context
     ToastContext.tsx     # Toast notifications
@@ -342,13 +341,11 @@ Mobile breakpoint at 768px:
 | `AnnouncementBanner` | doctorId | System announcements |
 | `AdminDoctorSelector` | onDoctorSelect | Admin doctor picker |
 | `CaseCard` | caseData, onSelect | Dashboard case card |
-| `SetCard` | set, doctor, batches, notes, photos, etc. | Expandable set card |
+| `SetCard` | set, doctor, batches, notes, etc. | Expandable set card |
 | `BatchesSection` | batches, onUpdateDays | Batch list |
 | `NotesSection` | notes, showAddNote, onAddNote | Notes timeline |
-| `SetPhotoGrid` | photos, onPhotoClick | Photo grid |
-| `SetPhotoUpload` | setId, drId, onUploadComplete | Upload handler |
-| `FullscreenImageViewer` | photo, onClose | Lightbox |
 | `YouTubeVideoDisplay` | videoId | Video embed |
+| `ErrorBoundary` | children | Render-crash catch-all fallback |
 
 ---
 

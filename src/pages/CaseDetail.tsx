@@ -27,7 +27,6 @@ const CaseDetail: React.FC = () => {
   // Use custom auth hook
   const {
     loading: authLoading,
-    error: authError,
     doctor,
     adminEmail,
     impersonatedDoctor,
@@ -83,21 +82,27 @@ const CaseDetail: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workId, navigate, doctor?.dr_id, loadNotes, setBatchesData]);
 
-  // Load case data when doctor is authenticated
+  // Load case data when doctor is authenticated. Any resolved non-doctor state
+  // (admin with nothing picked, unknown email, a stale token, etc.) bounces to
+  // the Dashboard, which owns the full auth-error UI — otherwise `loading` (init
+  // true) never gets a setter to call and the spinner never leaves.
   useEffect(() => {
-    if (!authLoading && doctor?.dr_id) {
+    if (authLoading) return;
+    if (doctor?.dr_id) {
       loadCaseData();
-    } else if (!authLoading && authError === 'admin_no_doctor_selected') {
+    } else {
       navigate('/');
     }
-  }, [authLoading, doctor?.dr_id, authError, navigate, loadCaseData]);
+  }, [authLoading, doctor?.dr_id, navigate, loadCaseData]);
 
   // Toggle set expansion
   const toggleSet = useCallback(
     async (setId: number): Promise<void> => {
       if (expandedSets[setId]) {
         setExpandedSets(prev => ({ ...prev, [setId]: false }));
-      } else {
+        return;
+      }
+      try {
         // Load missing data in parallel
         const loadPromises: Promise<unknown>[] = [];
         if (!batches[setId]) loadPromises.push(loadBatches(setId));
@@ -107,9 +112,14 @@ const CaseDetail: React.FC = () => {
           await Promise.all(loadPromises);
         }
         setExpandedSets(prev => ({ ...prev, [setId]: true }));
+      } catch {
+        // loadBatches/loadNotes already stash their own per-set error state;
+        // this rethrows, so without a catch here the card would just silently
+        // fail to expand with no feedback at all.
+        toast.error('Failed to load set details');
       }
     },
-    [expandedSets, batches, notes, loadBatches, loadNotes]
+    [expandedSets, batches, notes, loadBatches, loadNotes, toast]
   );
 
   // Add a doctor note to a set (writes to mirror → reverse-syncs to local)

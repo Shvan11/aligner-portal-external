@@ -9,25 +9,28 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastProvider } from './contexts/ToastContext';
+import ErrorBoundary from './components/shared/ErrorBoundary';
 import Dashboard from './pages/Dashboard';
 import CaseDetail from './pages/CaseDetail';
 
 function App(): React.JSX.Element {
   return (
-    <ToastProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Dashboard - List of all cases */}
-          <Route path="/" element={<Dashboard />} />
+    <ErrorBoundary>
+      <ToastProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Dashboard - List of all cases */}
+            <Route path="/" element={<Dashboard />} />
 
-          {/* Case Detail - Individual case with sets, batches, notes */}
-          <Route path="/case/:workId" element={<CaseDetail />} />
+            {/* Case Detail - Individual case with sets, batches, notes */}
+            <Route path="/case/:workId" element={<CaseDetail />} />
 
-          {/* Redirect any unknown routes to dashboard */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </ToastProvider>
+            {/* Redirect any unknown routes to dashboard */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
 

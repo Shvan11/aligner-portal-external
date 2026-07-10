@@ -7,7 +7,7 @@
  * showing it would render fabricated zeros. Re-add if/when payments are derived.
  */
 
-import { memo, type MouseEvent } from 'react';
+import { memo, type MouseEvent, type KeyboardEvent } from 'react';
 import type { CaseCardProps } from '../../types';
 
 const CaseCard = memo(function CaseCard({ caseData, onSelect }: CaseCardProps) {
@@ -20,12 +20,25 @@ const CaseCard = memo(function CaseCard({ caseData, onSelect }: CaseCardProps) {
     onSelect(caseData);
   };
 
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onSelect(caseData);
+    }
+  };
+
   const handleLinkClick = (e: MouseEvent<HTMLAnchorElement>): void => {
     e.stopPropagation();
   };
 
   return (
-    <div className="case-card" onClick={handleClick}>
+    <div
+      className="case-card"
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+    >
       {/* Header */}
       <div className="case-header">
         <div className="case-patient-row">
