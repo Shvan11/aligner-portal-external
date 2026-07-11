@@ -10,7 +10,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 // Always-on auth bridge: a Supabase Edge Function mints the scoped Supabase JWT
 // the portal reads under (replaces the old main-app/cloudflared dependency).
-const authFnUrl = `${(supabaseUrl || '').replace(/\/+$/, '')}/functions/v1/aligner-portal-auth`;
+const authFnUrl = '/api/auth';
 
 // =============================================================================
 // PORTAL SESSION / TOKEN EXCHANGE

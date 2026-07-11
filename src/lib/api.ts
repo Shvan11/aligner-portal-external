@@ -12,7 +12,7 @@
  * section below and sql/phase2-writes.sql).
  */
 
-import { supabase, supabaseUrl, supabaseAnonKey, getPortalToken } from './supabase';
+import { supabase, supabaseAnonKey, getPortalToken } from './supabase';
 import type {
   AlignerSet,
   AlignerSetWithDetails,
@@ -412,7 +412,7 @@ export async function updateBatchDays(batchId: number, days: number): Promise<vo
 // allows PUT from the portal origins).
 // =============================================================================
 
-const photosFnUrl = `${(supabaseUrl || '').replace(/\/+$/, '')}/functions/v1/aligner-portal-photos`;
+const photosFnUrl = '/api/photos';
 
 /** Call the photos Edge Function; unwraps errors into a thrown message. */
 async function photosFnFetch(path: string, init: RequestInit = {}): Promise<Record<string, unknown>> {
