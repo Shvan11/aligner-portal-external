@@ -473,6 +473,7 @@ function putToSignedUrl(url: string, file: File, mimeType: string, onProgress?: 
 export async function uploadPhoto(
   setId: number,
   file: File,
+  category: 'photos' | 'files',
   onProgress?: (fraction: number) => void
 ): Promise<void> {
   if (!setId) throw new Error('Set ID is required');
@@ -497,6 +498,7 @@ export async function uploadPhoto(
       fileName: file.name,
       fileSize: file.size,
       mimeType,
+      category,
     }),
   })) as unknown as PhotoUploadUrlResponse;
 

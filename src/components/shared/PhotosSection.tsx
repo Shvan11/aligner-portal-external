@@ -21,17 +21,37 @@ const PhotosSection: React.FC<PhotosSectionProps> = ({ setId, photos, onRefresh,
 
   const closeViewer = useCallback((): void => setViewerPhoto(null), []);
 
+  // Separate attachments based on subfolder in path (fallback to photos section for backward compatibility)
+  const imagePhotos = photos.filter(p => p.path.includes('/photos/') || !p.path.includes('/files/'));
+  const fileAttachments = photos.filter(p => p.path.includes('/files/'));
+
   return (
-    <div className="photos-section">
-      <div className="photos-header">
-        <h3>
-          <i className="fas fa-folder-open" aria-hidden="true"></i> Photos & Scans
-          {photos.length > 0 && <span className="photos-count">{photos.length}</span>}
-        </h3>
-        <SetPhotoUpload setId={setId} onUploadComplete={handleUploadComplete} />
+    <div className="attachments-sections">
+      {/* 1. Clinical Photos Section */}
+      <div className="photos-section" style={{ marginBottom: '2.5rem' }}>
+        <div className="photos-header">
+          <h3>
+            <i className="fas fa-camera" aria-hidden="true"></i> Clinical Photos
+            {imagePhotos.length > 0 && <span className="photos-count">{imagePhotos.length}</span>}
+          </h3>
+          <SetPhotoUpload setId={setId} category="photos" onUploadComplete={handleUploadComplete} />
+        </div>
+
+        <SetPhotoGrid photos={imagePhotos} onPhotoClick={setViewerPhoto} onPhotoDelete={handleDelete} />
       </div>
 
-      <SetPhotoGrid photos={photos} onPhotoClick={setViewerPhoto} onPhotoDelete={handleDelete} />
+      {/* 2. Scan Files Section */}
+      <div className="photos-section">
+        <div className="photos-header">
+          <h3>
+            <i className="fas fa-cube" aria-hidden="true"></i> Scan Files (STL/PLY/ZIP)
+            {fileAttachments.length > 0 && <span className="photos-count">{fileAttachments.length}</span>}
+          </h3>
+          <SetPhotoUpload setId={setId} category="files" onUploadComplete={handleUploadComplete} />
+        </div>
+
+        <SetPhotoGrid photos={fileAttachments} onPhotoClick={setViewerPhoto} onPhotoDelete={handleDelete} />
+      </div>
 
       {viewerPhoto && <FullscreenImageViewer photo={viewerPhoto} onClose={closeViewer} />}
     </div>

@@ -89,6 +89,7 @@ export interface PhotosSectionProps {
 
 export interface SetPhotoUploadProps {
   setId: number;
+  category: 'photos' | 'files';
   onUploadComplete: () => Promise<void> | void;
 }
 

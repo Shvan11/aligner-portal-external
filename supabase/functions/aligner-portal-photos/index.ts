@@ -153,7 +153,7 @@ async function ownsSet(drId: number, setId: number): Promise<boolean> {
 }
 
 // --- helpers ------------------------------------------------------------------
-const PATH_RE = /^sets\/(\d+)\/[\w.-]+$/;
+const PATH_RE = /^sets\/(\d+)\/(?:(photos|files)\/)?[\w.-]+$/;
 
 function setFolder(setId: number): string {
   return `sets/${setId}`;
@@ -259,6 +259,7 @@ async function handleUploadUrl(req: Request, drId: number): Promise<Response> {
   const setId = Number(body.setId);
   const fileName = typeof body.fileName === 'string' ? body.fileName : '';
   const fileSize = Number(body.fileSize);
+  const category = typeof body.category === 'string' && body.category === 'files' ? 'files' : 'photos';
   let mimeType = typeof body.mimeType === 'string' ? body.mimeType.toLowerCase() : '';
 
   if (!mimeType && fileName) {
@@ -278,7 +279,7 @@ async function handleUploadUrl(req: Request, drId: number): Promise<Response> {
     return json(req, { success: false, error: 'Set not found' }, 404);
   }
 
-  const path = `${setFolder(setId)}/${Date.now()}-${sanitizeFileName(fileName)}`;
+  const path = `${setFolder(setId)}/${category}/${Date.now()}-${sanitizeFileName(fileName)}`;
   const signedUrl = await presign('PUT', path, SIGNED_UPLOAD_TTL_SECONDS);
 
   return json(req, { success: true, path, signedUrl });
