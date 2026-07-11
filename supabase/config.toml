@@ -8,3 +8,8 @@ project_id = "ucfbpflrhggxvejhhqhx"
 # the gateway must not require a Supabase JWT. (The gateway still needs the
 # `apikey` header, which the portal sends.)
 verify_jwt = false
+
+[functions.aligner-portal-photos]
+# Same convention: the function verifies the minted portal JWT itself (sent in
+# the dedicated x-portal-token header, not Authorization).
+verify_jwt = false

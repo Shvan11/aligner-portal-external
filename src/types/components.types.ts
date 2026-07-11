@@ -8,9 +8,8 @@ import type {
   AlignerSet,
   AlignerBatch,
   AlignerNote,
-  AlignerSetPhoto,
 } from './database.types';
-import type { CaseData } from './api.types';
+import type { AlignerSetPhoto, CaseData } from './api.types';
 
 // =============================================================================
 // HEADER COMPONENTS
@@ -42,17 +41,20 @@ export interface CaseCardProps {
 // =============================================================================
 
 // Phase 2 re-enables the two doctor writes (add note, change batch days); both flow
-// to the mirror and reverse-sync home. The photo prop interfaces below are kept only
-// as type definitions for the future Phase 3 photo feature (not wired up).
+// to the mirror and reverse-sync home. Phase 3 adds case photos (private Cloudflare
+// R2 bucket via the aligner-portal-photos Edge Function — portal-owned, no sync).
 export interface SetCardProps {
   set: AlignerSet;
   doctor: AlignerDoctor;
   isExpanded: boolean;
   batches: AlignerBatch[] | undefined;
   notes: AlignerNote[] | undefined;
+  photos: AlignerSetPhoto[] | undefined;
   onToggleExpand: (setId: number) => void;
   onAddNote: (setId: number, noteText: string) => Promise<void>;
   onUpdateDays: (setId: number, batchId: number, days: number) => Promise<void>;
+  onRefreshPhotos: (setId: number) => Promise<void>;
+  onDeletePhoto: (setId: number, photo: AlignerSetPhoto) => Promise<void>;
 }
 
 // =============================================================================
@@ -78,17 +80,22 @@ export interface NotesSectionProps {
 // PHOTO COMPONENTS
 // =============================================================================
 
+export interface PhotosSectionProps {
+  setId: number;
+  photos: AlignerSetPhoto[];
+  onRefresh: (setId: number) => Promise<void>;
+  onDeletePhoto: (setId: number, photo: AlignerSetPhoto) => Promise<void>;
+}
+
 export interface SetPhotoUploadProps {
   setId: number;
-  doctorId: number;
-  onUploadComplete: () => void;
+  onUploadComplete: () => Promise<void> | void;
 }
 
 export interface SetPhotoGridProps {
   photos: AlignerSetPhoto[];
   onPhotoClick: (photo: AlignerSetPhoto) => void;
-  onPhotoDelete: (photoId: number) => void;
-  doctorId: number;
+  onPhotoDelete: (photo: AlignerSetPhoto) => Promise<void>;
 }
 
 export interface FullscreenImageViewerProps {

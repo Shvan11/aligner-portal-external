@@ -18,7 +18,6 @@ export type {
   AlignerBatch,
   NoteType,
   AlignerNote,
-  AlignerSetPhoto,
   AnnouncementType,
   AnnouncementRead,
   DoctorAnnouncement,
@@ -28,6 +27,7 @@ export type {
 // Re-export all API types
 export type {
   WorkDataMap,
+  AlignerSetPhoto,
   PhotoUploadUrlResponse,
   PhotoGetUrlsResponse,
   CaseData,
@@ -52,6 +52,7 @@ export type {
   SetCardProps,
   BatchesSectionProps,
   NotesSectionProps,
+  PhotosSectionProps,
   SetPhotoUploadProps,
   SetPhotoGridProps,
   FullscreenImageViewerProps,

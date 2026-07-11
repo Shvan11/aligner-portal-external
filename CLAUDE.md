@@ -10,10 +10,11 @@ This is a **client-facing portal** that allows partner doctors to:
 - Track aligner sets, batches, and delivery status
 - Add notes and communicate with the lab
 - Adjust days-per-aligner on a batch
+- Upload/view/delete case photos on a set (Phase 3 — private Cloudflare R2 bucket)
 - View treatment progress (aligners delivered vs. total)
 - Access PDF files and YouTube videos for sets
 
-(Photos and payment status are parked, not built — see Supabase Integration below.)
+(Payment status is parked, not built — see Supabase Integration below.)
 
 ### Tech Stack
 - **Frontend**: React 19.2, TypeScript 5.9, Vite 7.2
@@ -25,9 +26,9 @@ This is a **client-facing portal** that allows partner doctors to:
 ### Application Scale
 | Metric | Count |
 |--------|-------|
-| React Components (TSX) | 14 |
+| React Components (TSX) | 18 |
 | Pages | 2 |
-| Custom Hooks | 3 |
+| Custom Hooks | 4 |
 | Contexts | 1 |
 | Type Definition Files | 4 |
 | CSS Files | 2 |
@@ -64,7 +65,7 @@ npm run typecheck:watch  # Watch mode
     Dashboard.tsx        # Case list with stats and search
     CaseDetail.tsx       # Case detail with sets, batches, notes
 
-  /components/shared/    # 9 shared components
+  /components/shared/    # 13 shared components
     PortalHeader.tsx     # Header with branding and logout
     AnnouncementBanner.tsx # System announcements
     AdminDoctorSelector.tsx # Admin doctor impersonation
@@ -72,13 +73,18 @@ npm run typecheck:watch  # Watch mode
     SetCard.tsx          # Set card with expandable details
     BatchesSection.tsx   # Batch list with days editor
     NotesSection.tsx     # Notes timeline with add note form
+    PhotosSection.tsx    # Case-photo panel (upload + grid + viewer state)
+    SetPhotoUpload.tsx   # Photo upload button with byte-level progress
+    SetPhotoGrid.tsx     # Photo thumbnail grid with delete
+    FullscreenImageViewer.tsx # Fullscreen photo overlay (Esc/click to close)
     YouTubeVideoDisplay.tsx # YouTube video embed
     ErrorBoundary.tsx    # Render-crash catch-all fallback
 
-  /hooks/                # 3 custom hooks
+  /hooks/                # 4 custom hooks
     useAuthenticatedDoctor.ts # Auth + admin impersonation
     useBatches.ts        # Batch data management
     useNotes.ts          # Notes data management
+    usePhotos.ts         # Case-photo list/delete per set
 
   /contexts/             # 1 context
     ToastContext.tsx     # Toast notifications
@@ -201,14 +207,45 @@ to the clinic's local Postgres (whole-row LWW by `updated_at`):
   **SECURITY DEFINER** (so a non-owner writer's edit is recorded into `change_log` without granting
   it sync-infra privileges), and `REVERSE_SYNC_ENABLED=true` with the `reverse` sink enabled.
 
+### Case photos (Phase 3) → private Cloudflare R2 bucket, portal-owned, NO sync involvement
+Doctors attach clinical photos to a set. Photos never touch the mirror's public schema (no
+metadata table, no DDL, nothing for the CDC sinks to see): they live only in the **private
+R2 bucket `aligner-portal-files`** — the empty bucket left from the old pre-mirror pipeline,
+reused (R2 chosen over Supabase Storage for the 10GB free tier + $0 egress). Keys are
+`sets/{setId}/{ts}-{name}`; the object list is the source of truth (no metadata table). All
+access goes through the **`aligner-portal-photos` Edge Function**
+(`supabase/functions/aligner-portal-photos/index.ts`) — the only holder of R2 credentials;
+the browser only ever sees short-lived presigned URLs. The function:
+- verifies the same minted dr_id JWT the rest of the app reads under — sent in the dedicated
+  **`x-portal-token` header** (Authorization carries the anon key for the gateway), verified
+  against `PORTAL_JWT_SECRET`; dr_id is taken from the verified claims, never the body;
+- checks `aligner_sets.aligner_dr_id = dr_id` (service-role read) before every operation
+  (a delete re-derives its setId from the path);
+- routes: `GET /photos?setId` (S3 ListObjectsV2 + 1h presigned GET view URLs),
+  `POST /upload-url` (15-min presigned PUT — the browser uploads straight to R2, no 10MB
+  body through the function; 10MB/image-MIME validated at grant time), `POST /delete`.
+
+**One-time Cloudflare setup** (dashboard → R2, bucket `aligner-portal-files` already exists):
+create a FRESH API token **`aligner-portal-writer`** (Object Read & Write, scoped to that
+bucket) and put its keys in the main app's `.env` as `R2_ACCESS_KEY_ID` /
+`R2_SECRET_ACCESS_KEY` (account id reuses `CLOUDFLARE_ACCOUNT_ID`); **revoke the old
+`aligner-portal-edge-functions` token** (its keys are committed in git history —
+`docs/R2_STORAGE_SETUP.md` in old commits — burned); apply `r2-cors.json` as the bucket's CORS
+policy (presigned-PUT uploads are cross-origin XHR; replaces the old pipeline's stale origins).
+Deploy: `scripts/deploy-photos-fn.ps1` (sets the `R2_*` function secrets, then deploys).
+Smoke test: `node scripts/test-photos-fn.mjs` (mints JWTs from the main app's
+`SUPABASE_JWT_SECRET`; full upload→list→view→delete round-trip + auth/ownership guards).
+
 ### Edge Functions
 - `aligner-portal-auth` - verifies the Cloudflare-Access JWT and mints the dr_id-scoped Supabase JWT
   (`supabase/functions/aligner-portal-auth/index.ts`). Deploy with `verify_jwt = false`.
+- `aligner-portal-photos` - case-photo pipeline over the private Storage bucket (see above).
+  Deploy with `verify_jwt = false`.
 
 ### Parked (no raw equivalent — not built)
-- Payments (`aligner_set_payments` was a derived view), photos (`aligner_set_photos` + R2/Edge
-  pipeline, portal-owned), announcements (`doctor_announcements`, stub → `AnnouncementBanner` renders
-  nothing). Type defs for these remain in `src/types/` but are not wired up.
+- Payments (`aligner_set_payments` was a derived view), announcements (`doctor_announcements`,
+  stub → `AnnouncementBanner` renders nothing). Type defs for these remain in `src/types/` but
+  are not wired up.
 
 ### Environment Variables
 ```bash
@@ -300,8 +337,8 @@ import { formatDate, formatPatientName } from '../lib/supabase';
   first-char initials), chat-style notes (`.note-item` doctor right/teal vs `.note-item.lab-note`
   lab left/white), the deep-teal header band with dot lattice.
 - Class names are the contract between `styles.css` and components — keep them stable. Dead
-  feature CSS (announcements, photos, payments, fullscreen viewer) was removed; recover from git
-  history if those features return.
+  feature CSS (announcements, payments) was removed; recover from git history if those features
+  return. (Photo + fullscreen-viewer CSS was rebuilt in this design language for Phase 3.)
 
 ### Class Naming
 Uses BEM-like naming with component prefixes:
@@ -341,9 +378,13 @@ Mobile breakpoint at 768px:
 | `AnnouncementBanner` | doctorId | System announcements |
 | `AdminDoctorSelector` | onDoctorSelect | Admin doctor picker |
 | `CaseCard` | caseData, onSelect | Dashboard case card |
-| `SetCard` | set, doctor, batches, notes, etc. | Expandable set card |
+| `SetCard` | set, doctor, batches, notes, photos, etc. | Expandable set card |
 | `BatchesSection` | batches, onUpdateDays | Batch list |
 | `NotesSection` | notes, showAddNote, onAddNote | Notes timeline |
+| `PhotosSection` | setId, photos, onRefresh, onDeletePhoto | Case-photo panel |
+| `SetPhotoUpload` | setId, onUploadComplete | Upload button + progress |
+| `SetPhotoGrid` | photos, onPhotoClick, onPhotoDelete | Thumbnail grid |
+| `FullscreenImageViewer` | photo, onClose | Fullscreen photo overlay |
 | `YouTubeVideoDisplay` | videoId | Video embed |
 | `ErrorBoundary` | children | Render-crash catch-all fallback |
 
@@ -419,6 +460,9 @@ All API functions are in `src/lib/api.ts`:
 | `fetchWorkWithPatients(workIds)` | Combined work + patient data |
 | `createNote(setId, text, type='Doctor')` | **Write** — add a doctor note (→ reverse-sync) |
 | `updateBatchDays(batchId, days)` | **Write** — change days per aligner (→ reverse-sync) |
+| `fetchPhotos(setId)` | Case photos + short-lived presigned view URLs (Edge Function → R2) |
+| `uploadPhoto(setId, file, onProgress?)` | **Write** — presigned-URL upload to the private R2 bucket |
+| `deletePhoto(path)` | **Write** — remove a photo (ownership re-checked server-side) |
 
 ---
 
@@ -446,6 +490,16 @@ Configure Cloudflare Access to protect the portal:
 1. Create Access Application for the domain
 2. Configure authentication providers (email, SSO)
 3. Set up Access policies for allowed users
+
+**Allowed doctor emails are NOT hand-typed in the policy.** The policy's include
+rule is "Emails in list" → a Zero Trust list (Zero Trust → My Team → Lists) that
+the **main clinic app** keeps in sync with `aligner_doctors.doctor_email`
+(`services/cloudflare/doctor-email-list.ts`; full replace on every doctor
+create/update/delete + boot reconcile; `CLOUDFLARE_*` env vars in the main app's
+`.env`). Adding/removing a doctor's email in Settings → Aligner Doctors grants/
+revokes portal access automatically. The admin email stays as a separate
+manually-typed include rule in the same policy — it isn't in `aligner_doctors`,
+and it must survive even if the list sync misbehaves.
 
 ---
 

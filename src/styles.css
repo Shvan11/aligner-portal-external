@@ -1353,6 +1353,356 @@ body {
     box-shadow: none;
 }
 
+/* ===== PHOTOS — case photo grid + upload ===== */
+.photos-section {
+    margin-top: 1.4rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--portal-hairline);
+    animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.photos-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.photos-header h3 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--portal-grey);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.photos-header h3 i {
+    color: var(--portal-primary);
+}
+
+.photos-count {
+    background: var(--portal-mint);
+    border: 1px solid var(--portal-mint-strong);
+    color: var(--portal-primary-dark);
+    padding: 0.1rem 0.55rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+}
+
+/* Upload button (a <label> wrapping the hidden file input) */
+.photo-upload {
+    position: relative;
+}
+
+.photo-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1.1rem;
+    background: var(--portal-primary);
+    color: white;
+    border-radius: var(--radius-btn);
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 137, 123, 0.25);
+}
+
+.photo-upload-btn:hover {
+    background: var(--portal-primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0, 137, 123, 0.32);
+}
+
+.photo-upload-btn.uploading {
+    background: var(--portal-primary-dark);
+    cursor: progress;
+    transform: none;
+}
+
+.photo-upload-btn input {
+    display: none;
+}
+
+.photo-upload-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -7px;
+    height: 4px;
+    background: var(--portal-grey-light);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+}
+
+.photo-upload-progress-bar {
+    height: 100%;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(90deg, var(--portal-primary-dark) 0%, var(--portal-primary) 55%, var(--portal-primary-light) 100%);
+    transition: width 0.25s ease;
+}
+
+/* Thumbnail grid */
+.photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.8rem;
+}
+
+.photo-thumbnail {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: var(--radius-panel);
+    overflow: hidden;
+    border: 1px solid var(--portal-hairline);
+    background: var(--portal-mint);
+    box-shadow: var(--portal-shadow-xs);
+    cursor: zoom-in;
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s;
+    animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.photo-thumbnail:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--portal-shadow-hover);
+}
+
+.photo-thumbnail:focus-visible {
+    outline: 3px solid var(--portal-primary);
+    outline-offset: 2px;
+}
+
+.photo-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Magnifier hint on hover */
+.photo-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(11, 58, 53, 0.35);
+    color: white;
+    font-size: 1.3rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+
+.photo-thumbnail:hover .photo-overlay,
+.photo-thumbnail:focus-visible .photo-overlay {
+    opacity: 1;
+}
+
+.photo-delete-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--portal-error);
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--portal-shadow-xs);
+    opacity: 0;
+    transition: opacity 0.2s, background 0.2s, transform 0.2s;
+}
+
+.photo-thumbnail:hover .photo-delete-btn,
+.photo-thumbnail:focus-visible .photo-delete-btn,
+.photo-delete-btn:focus-visible {
+    opacity: 1;
+}
+
+.photo-delete-btn:hover {
+    background: var(--portal-error);
+    color: white;
+    transform: scale(1.06);
+}
+
+.photo-delete-btn:disabled {
+    opacity: 1;
+    cursor: wait;
+}
+
+/* Name + date strip along the bottom of a thumbnail */
+.photo-caption {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 1.1rem 0.65rem 0.5rem;
+    background: linear-gradient(180deg, transparent 0%, rgba(8, 40, 36, 0.78) 100%);
+    color: white;
+    pointer-events: none;
+}
+
+.photo-caption-name {
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.photo-caption-date {
+    font-size: 0.64rem;
+    opacity: 0.85;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Empty state (dashed drop-zone look, matches the tinted-panel language) */
+.empty-photos {
+    text-align: center;
+    padding: 1.75rem 1rem;
+    border: 1.5px dashed var(--portal-mint-strong);
+    border-radius: var(--radius-panel);
+    background: #F8FBFA;
+    color: var(--portal-grey);
+}
+
+.empty-photos i {
+    font-size: 1.6rem;
+    color: var(--portal-primary-light);
+    margin-bottom: 0.5rem;
+}
+
+.empty-photos p {
+    margin: 0.15rem 0;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--portal-grey-dark);
+}
+
+.empty-photos .empty-photos-hint {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--portal-grey);
+}
+
+/* Fullscreen viewer (below the toasts' z-index 1000 so feedback stays visible) */
+.fullscreen-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    background: rgba(8, 40, 36, 0.93);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    animation: viewer-fade 0.25s ease backwards;
+}
+
+@keyframes viewer-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fullscreen-close-btn {
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+    font-size: 1.05rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.fullscreen-close-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: scale(1.06);
+}
+
+.fullscreen-image-container {
+    max-width: min(1100px, 92vw);
+    max-height: 78vh;
+    animation: rise 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.fullscreen-image {
+    max-width: 100%;
+    max-height: 78vh;
+    object-fit: contain;
+    border-radius: var(--radius-panel);
+    box-shadow: var(--portal-shadow-deep);
+}
+
+.fullscreen-photo-info {
+    position: absolute;
+    left: 50%;
+    bottom: 3.2rem;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 1.4rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 0.6rem 1.2rem;
+    background: rgba(11, 58, 53, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-pill);
+    color: white;
+    font-size: 0.8rem;
+    max-width: 92vw;
+}
+
+.fullscreen-info-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fullscreen-info-row i {
+    color: var(--portal-primary-light);
+    font-size: 0.75rem;
+}
+
+.fullscreen-hint {
+    position: absolute;
+    bottom: 1.1rem;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
 /* ===== VIDEO SECTION ===== */
 .set-video-section {
     margin-top: 1.4rem;
@@ -1622,6 +1972,13 @@ body {
     }
 }
 
+/* No hover on touch devices — keep the per-photo delete button visible */
+@media (hover: none) {
+    .photo-delete-btn {
+        opacity: 1;
+    }
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
     .portal-main {
@@ -1709,6 +2066,36 @@ body {
     .btn-add-note {
         width: 100%;
         justify-content: center;
+    }
+
+    .photos-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .photos-header .photo-upload {
+        width: 100%;
+    }
+
+    .photos-header .photo-upload-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .photo-grid {
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: 0.6rem;
+    }
+
+    .fullscreen-viewer {
+        padding: 1rem;
+    }
+
+    .fullscreen-photo-info {
+        bottom: 2.9rem;
+        gap: 0.8rem;
+        font-size: 0.72rem;
     }
 
     .note-header-row {

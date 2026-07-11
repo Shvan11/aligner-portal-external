@@ -8,12 +8,13 @@ import { fetchCaseDetail } from '../lib/api';
 import type { AlignerSetWithBatches } from '../lib/api';
 import { useBatches } from '../hooks/useBatches';
 import { useNotes } from '../hooks/useNotes';
+import { usePhotos } from '../hooks/usePhotos';
 import { useAuthenticatedDoctor } from '../hooks/useAuthenticatedDoctor';
 import { useToast } from '../contexts/ToastContext';
 import PortalHeader from '../components/shared/PortalHeader';
 import AnnouncementBanner from '../components/shared/AnnouncementBanner';
 import SetCard from '../components/shared/SetCard';
-import type { SelectedCase, ExpandedState } from '../types';
+import type { SelectedCase, ExpandedState, AlignerSetPhoto } from '../types';
 
 const CaseDetail: React.FC = () => {
   const { workId } = useParams<{ workId: string }>();
@@ -23,6 +24,7 @@ const CaseDetail: React.FC = () => {
   // Use custom hooks for data management
   const { batches, loadBatches, setBatchesData, updateDays } = useBatches();
   const { notes, loadNotes, addNote } = useNotes();
+  const { photos, loadPhotos, removePhoto } = usePhotos();
 
   // Use custom auth hook
   const {
@@ -68,10 +70,15 @@ const CaseDetail: React.FC = () => {
         }
       });
 
-      // Auto-expand the active set and load its notes
+      // Auto-expand the active set and load its notes + photos. A photo-list
+      // failure is swallowed (empty grid) — photos are auxiliary and must never
+      // take the whole case view down with them.
       const activeSet = caseData.sets.find(set => set.is_active);
       if (activeSet) {
-        await loadNotes(activeSet.aligner_set_id);
+        await Promise.all([
+          loadNotes(activeSet.aligner_set_id),
+          loadPhotos(activeSet.aligner_set_id).catch(() => undefined),
+        ]);
         setExpandedSets(prev => ({ ...prev, [activeSet.aligner_set_id]: true }));
       }
     } catch {
@@ -80,7 +87,7 @@ const CaseDetail: React.FC = () => {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workId, navigate, doctor?.dr_id, loadNotes, setBatchesData]);
+  }, [workId, navigate, doctor?.dr_id, loadNotes, loadPhotos, setBatchesData]);
 
   // Load case data when doctor is authenticated. Any resolved non-doctor state
   // (admin with nothing picked, unknown email, a stale token, etc.) bounces to
@@ -107,19 +114,22 @@ const CaseDetail: React.FC = () => {
         const loadPromises: Promise<unknown>[] = [];
         if (!batches[setId]) loadPromises.push(loadBatches(setId));
         if (!notes[setId]) loadPromises.push(loadNotes(setId));
+        // Photos are auxiliary: a failed list renders an empty grid instead of
+        // blocking the expansion of batches/notes.
+        if (!photos[setId]) loadPromises.push(loadPhotos(setId).catch(() => undefined));
 
         if (loadPromises.length > 0) {
           await Promise.all(loadPromises);
         }
         setExpandedSets(prev => ({ ...prev, [setId]: true }));
       } catch {
-        // loadBatches/loadNotes already stash their own per-set error state;
-        // this rethrows, so without a catch here the card would just silently
-        // fail to expand with no feedback at all.
+        // loadBatches/loadNotes/loadPhotos already stash their own per-set
+        // error state; this rethrows, so without a catch here the card would
+        // just silently fail to expand with no feedback at all.
         toast.error('Failed to load set details');
       }
     },
-    [expandedSets, batches, notes, loadBatches, loadNotes, toast]
+    [expandedSets, batches, notes, photos, loadBatches, loadNotes, loadPhotos, toast]
   );
 
   // Add a doctor note to a set (writes to mirror → reverse-syncs to local)
@@ -136,6 +146,22 @@ const CaseDetail: React.FC = () => {
       await updateDays(setId, batchId, days);
     },
     [updateDays]
+  );
+
+  // Re-list a set's photos (after an upload lands in the storage bucket)
+  const handleRefreshPhotos = useCallback(
+    async (setId: number): Promise<void> => {
+      await loadPhotos(setId);
+    },
+    [loadPhotos]
+  );
+
+  // Delete a photo from the storage bucket, then re-list
+  const handleDeletePhoto = useCallback(
+    async (setId: number, photo: AlignerSetPhoto): Promise<void> => {
+      await removePhoto(setId, photo);
+    },
+    [removePhoto]
   );
 
   // Navigate back to dashboard
@@ -232,9 +258,12 @@ const CaseDetail: React.FC = () => {
                   isExpanded={expandedSets[set.aligner_set_id] || false}
                   batches={batches[set.aligner_set_id]}
                   notes={notes[set.aligner_set_id]}
+                  photos={photos[set.aligner_set_id]}
                   onToggleExpand={toggleSet}
                   onAddNote={handleAddNote}
                   onUpdateDays={handleUpdateDays}
+                  onRefreshPhotos={handleRefreshPhotos}
+                  onDeletePhoto={handleDeletePhoto}
                 />
               ))}
             </div>

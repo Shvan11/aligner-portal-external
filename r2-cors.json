@@ -1,0 +1,12 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://aligner.shwan-orthodontics.com",
+      "https://shwan-aligner-portal.pages.dev",
+      "http://localhost:5173"
+    ],
+    "AllowedMethods": ["PUT", "GET"],
+    "AllowedHeaders": ["content-type"],
+    "MaxAgeSeconds": 3600
+  }
+]

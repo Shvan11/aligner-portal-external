@@ -12,12 +12,14 @@
  * section below and sql/phase2-writes.sql).
  */
 
-import { supabase } from './supabase';
+import { supabase, supabaseUrl, supabaseAnonKey, getPortalToken } from './supabase';
 import type {
   AlignerSet,
   AlignerSetWithDetails,
   AlignerBatch,
   AlignerNote,
+  AlignerSetPhoto,
+  PhotoUploadUrlResponse,
   Work,
   Patient,
   WorkDataMap,
@@ -393,6 +395,109 @@ export async function updateBatchDays(batchId: number, days: number): Promise<vo
   if (!data || data.length === 0) {
     throw new Error('Batch not found or not updatable');
   }
+}
+
+// =============================================================================
+// PHOTOS — Phase 3 (portal-owned; no sync involvement)
+//
+// Case photos live in a PRIVATE Cloudflare R2 bucket that only the
+// aligner-portal-photos Edge Function can reach (it alone holds the R2
+// credentials; no metadata table, nothing on the clinic mirror's public
+// schema — so the CDC sync never sees them). The function verifies the same
+// minted dr_id JWT the rest of the portal reads under (sent in the dedicated
+// `x-portal-token` header; Authorization carries the anon key for the Supabase
+// gateway) and checks set ownership before every operation. Uploads don't pass
+// through the function: it returns a short-lived presigned URL and the browser
+// PUTs the file straight into R2 (the bucket's CORS policy — r2-cors.json —
+// allows PUT from the portal origins).
+// =============================================================================
+
+const photosFnUrl = `${(supabaseUrl || '').replace(/\/+$/, '')}/functions/v1/aligner-portal-photos`;
+
+/** Call the photos Edge Function; unwraps errors into a thrown message. */
+async function photosFnFetch(path: string, init: RequestInit = {}): Promise<Record<string, unknown>> {
+  const token = await getPortalToken();
+  if (!token) {
+    throw new Error('Portal session not established');
+  }
+  const res = await fetch(`${photosFnUrl}${path}`, {
+    ...init,
+    headers: {
+      ...(init.headers as Record<string, string> | undefined),
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+      'x-portal-token': token,
+    },
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok || body.success === false) {
+    const message = typeof body.error === 'string' && body.error ? body.error : `Photo request failed (${res.status})`;
+    throw new Error(message);
+  }
+  return body;
+}
+
+/**
+ * Fetch photos for an aligner set. Each photo carries a short-lived signed
+ * view URL, so results must not be cached beyond the page's in-memory state.
+ */
+export async function fetchPhotos(setId: number): Promise<AlignerSetPhoto[]> {
+  if (!setId) throw new Error('Set ID is required');
+  const body = await photosFnFetch(`/photos?setId=${setId}`);
+  return (body.photos as AlignerSetPhoto[]) || [];
+}
+
+/** PUT a file to a signed storage upload URL, reporting real upload progress. */
+function putToSignedUrl(url: string, file: File, onProgress?: (fraction: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+    };
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new Error(`Upload failed (${xhr.status})`));
+    xhr.onerror = () => reject(new Error('Upload failed (network error)'));
+    xhr.send(file);
+  });
+}
+
+/**
+ * Upload a case photo: ask the Edge Function for a signed upload URL (it
+ * validates type/size and set ownership), then PUT the file directly to
+ * storage. `onProgress` reports the PUT's byte progress (0..1).
+ */
+export async function uploadPhoto(
+  setId: number,
+  file: File,
+  onProgress?: (fraction: number) => void
+): Promise<void> {
+  if (!setId) throw new Error('Set ID is required');
+  const grant = (await photosFnFetch('/upload-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      setId,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type,
+    }),
+  })) as unknown as PhotoUploadUrlResponse;
+
+  await putToSignedUrl(grant.signedUrl, file, onProgress);
+}
+
+/** Delete a photo (the Edge Function re-derives the set from the path and re-checks ownership). */
+export async function deletePhoto(path: string): Promise<void> {
+  if (!path) throw new Error('Photo path is required');
+  await photosFnFetch('/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
 }
 
 // =============================================================================

@@ -7,7 +7,6 @@ import type {
   AlignerSet,
   AlignerBatch,
   AlignerNote,
-  AlignerSetPhoto,
   WorkWithPatient,
   Patient,
 } from './database.types';
@@ -24,15 +23,31 @@ export interface WorkDataMap {
 }
 
 /**
- * Photo upload URL response from Edge Function
+ * A case photo, as returned by the aligner-portal-photos Edge Function. Not a
+ * database row: photos live only in the private Cloudflare R2 bucket and the
+ * object list is the source of truth. `path` (sets/{setId}/{ts}-{name}) is the
+ * photo's identity; `view_url` is a short-lived presigned URL minted per list.
  */
-export interface PhotoUploadUrlResponse {
-  uploadUrl: string;
-  fileKey: string;
+export interface AlignerSetPhoto {
+  path: string;
+  file_name: string;
+  file_size: number | null;
+  mime_type: string | null;
+  uploaded_at: string | null;
+  view_url: string;
 }
 
 /**
- * Photo URLs response from Edge Function
+ * Presigned-upload-URL response from the aligner-portal-photos Edge Function.
+ * The client PUTs the file body straight to `signedUrl` (R2).
+ */
+export interface PhotoUploadUrlResponse {
+  path: string;
+  signedUrl: string;
+}
+
+/**
+ * Photo list response from the aligner-portal-photos Edge Function
  */
 export interface PhotoGetUrlsResponse {
   photos: AlignerSetPhoto[];

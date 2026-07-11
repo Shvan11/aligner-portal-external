@@ -171,28 +171,6 @@ export interface AlignerNote {
 }
 
 // =============================================================================
-// PHOTO TYPES
-// =============================================================================
-
-/**
- * Aligner set photo from aligner_set_photos table
- */
-export interface AlignerSetPhoto {
-  photo_id: number;
-  aligner_set_id: number;
-  file_key: string;
-  file_name: string;
-  file_size?: number | null;
-  mime_type?: string | null;
-  uploaded_by?: number | null;
-  uploaded_at: string;
-  // Presigned URLs added by Edge Function
-  view_url?: string;
-  thumbnail_url?: string;
-  url?: string; // Alternative URL property
-}
-
-// =============================================================================
 // ANNOUNCEMENT TYPES
 // =============================================================================
 

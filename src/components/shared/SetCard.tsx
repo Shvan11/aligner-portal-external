@@ -8,6 +8,7 @@ import { memo, useMemo, useCallback, type KeyboardEvent } from 'react';
 import { formatDate } from '../../lib/supabase';
 import BatchesSection from './BatchesSection';
 import NotesSection from './NotesSection';
+import PhotosSection from './PhotosSection';
 import YouTubeVideoDisplay from './YouTubeVideoDisplay';
 import type { SetCardProps } from '../../types';
 
@@ -17,9 +18,12 @@ const SetCard = memo(function SetCard({
   isExpanded,
   batches,
   notes,
+  photos,
   onToggleExpand,
   onAddNote,
   onUpdateDays,
+  onRefreshPhotos,
+  onDeletePhoto,
 }: SetCardProps) {
   // Calculate progress
   const { progress, delivered, total } = useMemo(() => {
@@ -167,6 +171,14 @@ const SetCard = memo(function SetCard({
           {batches && batches.length > 0 && (
             <BatchesSection batches={batches} onUpdateDays={handleUpdateDays} />
           )}
+
+          {/* Case photos (upload + grid + fullscreen viewer) */}
+          <PhotosSection
+            setId={setId}
+            photos={photos || []}
+            onRefresh={onRefreshPhotos}
+            onDeletePhoto={onDeletePhoto}
+          />
 
           {/* Notes timeline + add-note form */}
           <NotesSection

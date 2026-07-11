@@ -167,6 +167,20 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
 });
 
 /**
+ * Current minted portal JWT for calls that bypass supabase-js — the photos Edge
+ * Function reads it from the dedicated `x-portal-token` header (Authorization
+ * carries the anon key for the gateway). Returns null before a session is
+ * established (getAccessToken's anon-key fallback is no proof of identity, so
+ * it must never travel as the portal token).
+ */
+export async function getPortalToken(): Promise<string | null> {
+  const token = await getAccessToken();
+  return token === supabaseAnonKey ? null : token;
+}
+
+export { supabaseUrl, supabaseAnonKey };
+
+/**
  * JWT Payload structure from Cloudflare Access
  */
 interface CloudflareJWTPayload {
