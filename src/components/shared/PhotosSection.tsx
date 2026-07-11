@@ -25,7 +25,7 @@ const PhotosSection: React.FC<PhotosSectionProps> = ({ setId, photos, onRefresh,
     <div className="photos-section">
       <div className="photos-header">
         <h3>
-          <i className="fas fa-images" aria-hidden="true"></i> Photos
+          <i className="fas fa-folder-open" aria-hidden="true"></i> Photos & Scans
           {photos.length > 0 && <span className="photos-count">{photos.length}</span>}
         </h3>
         <SetPhotoUpload setId={setId} onUploadComplete={handleUploadComplete} />

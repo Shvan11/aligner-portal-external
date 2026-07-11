@@ -1489,6 +1489,23 @@ body {
     display: block;
 }
 
+.file-icon-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--portal-bg);
+    color: var(--portal-primary-dark);
+    font-size: 2.5rem;
+    transition: background-color 0.25s, color 0.25s;
+}
+
+.photo-thumbnail:hover .file-icon-placeholder {
+    background: var(--portal-mint-strong);
+    color: var(--portal-ink);
+}
+
 /* Magnifier hint on hover */
 .photo-overlay {
     position: absolute;

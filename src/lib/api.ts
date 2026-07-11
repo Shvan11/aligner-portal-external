@@ -448,11 +448,11 @@ export async function fetchPhotos(setId: number): Promise<AlignerSetPhoto[]> {
 }
 
 /** PUT a file to a signed storage upload URL, reporting real upload progress. */
-function putToSignedUrl(url: string, file: File, onProgress?: (fraction: number) => void): Promise<void> {
+function putToSignedUrl(url: string, file: File, mimeType: string, onProgress?: (fraction: number) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
-    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.setRequestHeader('Content-Type', mimeType);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
     };
@@ -466,7 +466,7 @@ function putToSignedUrl(url: string, file: File, onProgress?: (fraction: number)
 }
 
 /**
- * Upload a case photo: ask the Edge Function for a signed upload URL (it
+ * Upload a case photo/file: ask the Edge Function for a signed upload URL (it
  * validates type/size and set ownership), then PUT the file directly to
  * storage. `onProgress` reports the PUT's byte progress (0..1).
  */
@@ -476,6 +476,19 @@ export async function uploadPhoto(
   onProgress?: (fraction: number) => void
 ): Promise<void> {
   if (!setId) throw new Error('Set ID is required');
+
+  // Resolve mime type if empty (common for .stl / .ply on some OS/browsers)
+  let mimeType = file.type;
+  if (!mimeType) {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const mimeMap: Record<string, string> = {
+      zip: 'application/zip',
+      stl: 'model/stl',
+      ply: 'model/ply',
+    };
+    mimeType = mimeMap[ext || ''] || 'application/octet-stream';
+  }
+
   const grant = (await photosFnFetch('/upload-url', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -483,11 +496,11 @@ export async function uploadPhoto(
       setId,
       fileName: file.name,
       fileSize: file.size,
-      mimeType: file.type,
+      mimeType,
     }),
   })) as unknown as PhotoUploadUrlResponse;
 
-  await putToSignedUrl(grant.signedUrl, file, onProgress);
+  await putToSignedUrl(grant.signedUrl, file, mimeType, onProgress);
 }
 
 /** Delete a photo (the Edge Function re-derives the set from the path and re-checks ownership). */

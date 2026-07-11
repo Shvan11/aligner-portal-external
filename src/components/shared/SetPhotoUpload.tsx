@@ -9,7 +9,7 @@ import { uploadPhoto } from '../../lib/api';
 import { useToast } from '../../contexts/ToastContext';
 import type { SetPhotoUploadProps } from '../../types';
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024; // mirrors the Edge Function / bucket limit
+const MAX_FILE_BYTES = 100 * 1024 * 1024; // mirrors the Edge Function / bucket limit
 
 const SetPhotoUpload: React.FC<SetPhotoUploadProps> = ({ setId, onUploadComplete }) => {
   const toast = useToast();
@@ -24,12 +24,8 @@ const SetPhotoUpload: React.FC<SetPhotoUploadProps> = ({ setId, onUploadComplete
     e.target.value = '';
 
     // Client-side validation (the Edge Function + bucket re-enforce both)
-    if (!file.type.startsWith('image/')) {
-      toast.warning('Please select an image file (JPEG, PNG, WEBP, GIF, HEIC)');
-      return;
-    }
     if (file.size > MAX_FILE_BYTES) {
-      toast.warning('File too large. Maximum size is 10MB');
+      toast.warning('File too large. Maximum size is 100MB');
       return;
     }
 
@@ -44,7 +40,7 @@ const SetPhotoUpload: React.FC<SetPhotoUploadProps> = ({ setId, onUploadComplete
       setProgress(100);
 
       await onUploadComplete();
-      toast.success('Photo uploaded');
+      toast.success('File uploaded successfully');
 
       setTimeout(() => setProgress(0), 800);
     } catch (error) {
@@ -61,7 +57,7 @@ const SetPhotoUpload: React.FC<SetPhotoUploadProps> = ({ setId, onUploadComplete
       <label className={`photo-upload-btn ${uploading ? 'uploading' : ''}`}>
         <input
           type="file"
-          accept="image/*"
+          accept="image/*,.zip,.stl,.ply"
           onChange={handleFileSelect}
           disabled={uploading}
         />
@@ -72,8 +68,8 @@ const SetPhotoUpload: React.FC<SetPhotoUploadProps> = ({ setId, onUploadComplete
           </>
         ) : (
           <>
-            <i className="fas fa-camera"></i>
-            <span>Add Photo</span>
+            <i className="fas fa-upload"></i>
+            <span>Upload File</span>
           </>
         )}
       </label>

@@ -2,18 +2,10 @@ import { createClient } from '@supabase/supabase-js';
 import { jwtVerify } from 'jose';
 import { AwsClient } from 'aws4fetch';
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_FILE_BYTES = 100 * 1024 * 1024;
 const SIGNED_VIEW_TTL_SECONDS = 60 * 60;
 const SIGNED_UPLOAD_TTL_SECONDS = 15 * 60;
 const MAX_PHOTOS_LISTED = 200;
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'image/heic',
-  'image/heif',
-];
 
 function resolveOrigin(request: Request, env: any): string {
   const allowedOrigins = (env.PORTAL_ALLOWED_ORIGIN ?? '*')
@@ -96,11 +88,14 @@ const MIME_BY_EXT: Record<string, string> = {
   gif: 'image/gif',
   heic: 'image/heic',
   heif: 'image/heif',
+  zip: 'application/zip',
+  stl: 'model/stl',
+  ply: 'model/ply',
 };
 
-function mimeFromKey(key: string): string | null {
+function mimeFromKey(key: string): string {
   const ext = key.slice(key.lastIndexOf('.') + 1).toLowerCase();
-  return MIME_BY_EXT[ext] ?? null;
+  return MIME_BY_EXT[ext] ?? 'application/octet-stream';
 }
 
 export const onRequest: PagesFunction<any> = async (context) => {
@@ -202,16 +197,20 @@ export const onRequest: PagesFunction<any> = async (context) => {
       const setId = Number(body.setId);
       const fileName = typeof body.fileName === 'string' ? body.fileName : '';
       const fileSize = Number(body.fileSize);
-      const mimeType = typeof body.mimeType === 'string' ? body.mimeType.toLowerCase() : '';
+      let mimeType = typeof body.mimeType === 'string' ? body.mimeType.toLowerCase() : '';
+
+      if (!mimeType && fileName) {
+        mimeType = mimeFromKey(fileName);
+      }
+      if (!mimeType) {
+        mimeType = 'application/octet-stream';
+      }
 
       if (!Number.isInteger(setId) || setId <= 0) {
         return json(request, env, { success: false, error: 'Valid setId is required' }, 400);
       }
-      if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
-        return json(request, env, { success: false, error: 'Only JPEG, PNG, WEBP, GIF or HEIC images are allowed' }, 400);
-      }
       if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > MAX_FILE_BYTES) {
-        return json(request, env, { success: false, error: 'File must be between 1 byte and 10MB' }, 400);
+        return json(request, env, { success: false, error: 'File must be between 1 byte and 100MB' }, 400);
       }
       if (!(await ownsSet(admin, drId, setId))) {
         return json(request, env, { success: false, error: 'Set not found' }, 404);

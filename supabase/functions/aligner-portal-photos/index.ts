@@ -50,18 +50,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { jwtVerify } from 'https://esm.sh/jose@5';
 import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.20';
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024; // keep in sync with the client check
+const MAX_FILE_BYTES = 100 * 1024 * 1024; // keep in sync with the client check
 const SIGNED_VIEW_TTL_SECONDS = 60 * 60; // 1h — the grid re-signs on every list
 const SIGNED_UPLOAD_TTL_SECONDS = 15 * 60;
 const MAX_PHOTOS_LISTED = 200;
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'image/heic',
-  'image/heif',
-];
 
 // --- env -------------------------------------------------------------------
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
@@ -197,10 +189,13 @@ const MIME_BY_EXT: Record<string, string> = {
   gif: 'image/gif',
   heic: 'image/heic',
   heif: 'image/heif',
+  zip: 'application/zip',
+  stl: 'model/stl',
+  ply: 'model/ply',
 };
-function mimeFromKey(key: string): string | null {
+function mimeFromKey(key: string): string {
   const ext = key.slice(key.lastIndexOf('.') + 1).toLowerCase();
-  return MIME_BY_EXT[ext] ?? null;
+  return MIME_BY_EXT[ext] ?? 'application/octet-stream';
 }
 
 // --- handlers -----------------------------------------------------------------
@@ -264,16 +259,20 @@ async function handleUploadUrl(req: Request, drId: number): Promise<Response> {
   const setId = Number(body.setId);
   const fileName = typeof body.fileName === 'string' ? body.fileName : '';
   const fileSize = Number(body.fileSize);
-  const mimeType = typeof body.mimeType === 'string' ? body.mimeType.toLowerCase() : '';
+  let mimeType = typeof body.mimeType === 'string' ? body.mimeType.toLowerCase() : '';
+
+  if (!mimeType && fileName) {
+    mimeType = mimeFromKey(fileName);
+  }
+  if (!mimeType) {
+    mimeType = 'application/octet-stream';
+  }
 
   if (!Number.isInteger(setId) || setId <= 0) {
     return json(req, { success: false, error: 'Valid setId is required' }, 400);
   }
-  if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
-    return json(req, { success: false, error: 'Only JPEG, PNG, WEBP, GIF or HEIC images are allowed' }, 400);
-  }
   if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > MAX_FILE_BYTES) {
-    return json(req, { success: false, error: 'File must be between 1 byte and 10MB' }, 400);
+    return json(req, { success: false, error: 'File must be between 1 byte and 100MB' }, 400);
   }
   if (!(await ownsSet(drId, setId))) {
     return json(req, { success: false, error: 'Set not found' }, 404);
