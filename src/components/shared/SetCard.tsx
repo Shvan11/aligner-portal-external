@@ -25,13 +25,20 @@ const SetCard = memo(function SetCard({
   onRefreshPhotos,
   onDeletePhoto,
 }: SetCardProps) {
-  // Calculate progress
+  // Calculate progress. Delivered = aligners in batches with a delivery date,
+  // net of templates (the set totals also exclude templates). NOT
+  // total-minus-remaining: remaining_* is consumed when the lab CREATES a
+  // batch, not when it reaches the patient, so that formula overstates.
   const { progress, delivered, total } = useMemo(() => {
-    const deliveredCount =
-      (set.upper_aligners_count || 0) +
-      (set.lower_aligners_count || 0) -
-      (set.remaining_upper_aligners || 0) -
-      (set.remaining_lower_aligners || 0);
+    const deliveredCount = (batches || []).reduce(
+      (sum, b) =>
+        b.delivered_to_patient_date
+          ? sum +
+            ((b.upper_aligner_count || 0) - (b.has_upper_template ? 1 : 0)) +
+            ((b.lower_aligner_count || 0) - (b.has_lower_template ? 1 : 0))
+          : sum,
+      0
+    );
     const totalCount = (set.upper_aligners_count || 0) + (set.lower_aligners_count || 0);
     const progressPercent = totalCount > 0 ? Math.round((deliveredCount / totalCount) * 100) : 0;
 
@@ -40,12 +47,7 @@ const SetCard = memo(function SetCard({
       delivered: deliveredCount,
       total: totalCount,
     };
-  }, [
-    set.upper_aligners_count,
-    set.lower_aligners_count,
-    set.remaining_upper_aligners,
-    set.remaining_lower_aligners,
-  ]);
+  }, [batches, set.upper_aligners_count, set.lower_aligners_count]);
 
   const setId = set.aligner_set_id;
 

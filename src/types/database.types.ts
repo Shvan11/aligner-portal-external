@@ -141,6 +141,8 @@ export interface AlignerBatch {
   lower_aligner_end_sequence?: number | null;
   days?: number | null;
   validity_period?: number | null;
+  has_upper_template?: boolean;
+  has_lower_template?: boolean;
   manufacture_date?: string | null;
   delivered_to_patient_date?: string | null;
   next_batch_ready_date?: string | null;
