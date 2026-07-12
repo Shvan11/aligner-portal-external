@@ -11,8 +11,14 @@ This is a **client-facing portal** that allows partner doctors to:
 - Add notes and communicate with the lab
 - Adjust days-per-aligner on a batch
 - Upload/view/delete case photos on a set (Phase 3 — private Cloudflare R2 bucket)
+- See clinic announcements (staff-composed + auto batch-manufactured/delivered events) and
+  dismiss them (Phase 3b — read receipts reverse-sync to the clinic)
 - View treatment progress (aligners delivered vs. total)
 - Access PDF files and YouTube videos for sets
+
+Every portal write (note, days change, photo/scan upload) also drops a best-effort
+`aligner_activity_flags` row (`source='portal'`) that feeds the STAFF app's "Portal activity"
+header bell after reverse sync.
 
 (Payment status is parked, not built — see Supabase Integration below.)
 
@@ -195,17 +201,40 @@ on the mirror) — related tables are fetched separately and joined in JS (`src/
 ### Tables read (RLS, scoped by `dr_id`)
 - `aligner_doctors`, `aligner_sets`, `aligner_batches`, `aligner_notes`, `works`, `patients`
 - RLS + `SELECT` grants for these six: **`sql/phase1-rls.sql`**.
+- Plus (Phase 3b): `doctor_announcements` (broadcast OR own `dr_id`) and
+  `doctor_announcement_reads` (own receipts) — **`sql/phase3-announcements.sql`**.
 
-### Writes (Phase 2) → reverse-sync back to local
-A doctor can do exactly two writes, both directly on the mirror; **reverse-sync CDC v2** carries them
+### Writes (Phase 2 + 3b) → reverse-sync back to local
+A doctor can do exactly four writes, all directly on the mirror; **reverse-sync CDC v2** carries them
 to the clinic's local Postgres (whole-row LWW by `updated_at`):
 - **Add note** → `INSERT aligner_notes` (RLS forces `note_type='Doctor'` **and `is_read=false`** —
   the column DEFAULTs to TRUE, so the insert must send it explicitly or the lab's unread badge never fires).
 - **Change days** → `UPDATE aligner_batches.days`.
-- Column-scoped grants + per-row RLS write policies: **`sql/phase2-writes.sql`**.
+- Column-scoped grants + per-row RLS write policies for those two: **`sql/phase2-writes.sql`**.
+- **Dismiss an announcement** → `INSERT doctor_announcement_reads` (own `dr_id`, only for an
+  announcement the doctor can see; insert-only — upsert w/ `ignoreDuplicates`, no UPDATE grant).
+  Receipts reverse-sync home to the staff app's per-announcement receipts UI.
+- **Flag activity for the staff bell** → `INSERT aligner_activity_flags` after every note / days
+  change / photo / scan upload (`tryCreateActivityFlag` in `src/lib/api.ts` — best-effort, one
+  retry, never throws: the flag must never break the primary action). RLS pins `source='portal'`,
+  `is_read=false` (the column default — NOT granted), the 4 activity types, and the doctor's own
+  set. No SELECT grant — the portal writes flags blind; the STAFF app's "Portal activity" header
+  bell reads them after reverse sync.
+- Grants + policies for these two (and the announcements SELECTs): **`sql/phase3-announcements.sql`**.
 - Prereq: the main app's `migrations/supabase/reverse-cdc.sql` `cdc_capture_remote()` is
   **SECURITY DEFINER** (so a non-owner writer's edit is recorded into `change_log` without granting
   it sync-infra privileges), and `REVERSE_SYNC_ENABLED=true` with the `reverse` sink enabled.
+
+### Announcements (Phase 3b) — clinic → doctor banner
+`doctor_announcements` is authored in the STAFF app (manual targeted/broadcast messages + auto
+batch-manufactured/delivered events from `updateBatchStatus`) and **forward-syncs** onto the mirror
+(the table deliberately has NO `updated_at`, keeping it out of reverse sync; its DDL lives in the
+main app's `migrations/supabase/announcements-2026-07-11.sql`). `AnnouncementBanner` fetches the
+doctor's unread announcements on load (two queries joined in JS — no realtime subscription, no
+PostgREST embedding per portal convention) and filters expiry client-side; dismissing is the
+receipts insert above, optimistic with rollback + toast on failure. NB a dismiss racing a staff-side
+delete errors as **RLS 42501** (the visibility WITH CHECK fails before the FK) — treated as success
+(both 42501 and 23503 are swallowed).
 
 ### Case photos (Phase 3) → private Cloudflare R2 bucket, portal-owned, NO sync involvement
 Doctors attach clinical photos to a set. Photos never touch the mirror's public schema (no
@@ -243,9 +272,8 @@ Smoke test: `node scripts/test-photos-fn.mjs` (mints JWTs from the main app's
   Deploy with `verify_jwt = false`.
 
 ### Parked (no raw equivalent — not built)
-- Payments (`aligner_set_payments` was a derived view), announcements (`doctor_announcements`,
-  stub → `AnnouncementBanner` renders nothing). Type defs for these remain in `src/types/` but
-  are not wired up.
+- Payments (`aligner_set_payments` was a derived view). Type defs remain in `src/types/` but are
+  not wired up. (Announcements were un-parked in Phase 3b — see above.)
 
 ### Environment Variables
 ```bash
@@ -375,7 +403,7 @@ Mobile breakpoint at 768px:
 | Component | Props | Description |
 |-----------|-------|-------------|
 | `PortalHeader` | doctor, isAdmin, impersonatedDoctor | Header with branding |
-| `AnnouncementBanner` | doctorId | System announcements |
+| `AnnouncementBanner` | doctorId | Unread clinic announcements banner (dismiss → read receipt) |
 | `AdminDoctorSelector` | onDoctorSelect | Admin doctor picker |
 | `CaseCard` | caseData, onSelect | Dashboard case card |
 | `SetCard` | set, doctor, batches, notes, photos, etc. | Expandable set card |
@@ -463,6 +491,9 @@ All API functions are in `src/lib/api.ts`:
 | `fetchPhotos(setId)` | Case photos + short-lived presigned view URLs (Edge Function → R2) |
 | `uploadPhoto(setId, file, onProgress?)` | **Write** — presigned-URL upload to the private R2 bucket |
 | `deletePhoto(path)` | **Write** — remove a photo (ownership re-checked server-side) |
+| `fetchAnnouncements(drId)` | Unread, unexpired announcements (broadcast + targeted; reads joined in JS) |
+| `dismissAnnouncement(id, drId)` | **Write** — insert a read receipt (→ reverse-sync; 42501/23503 = already gone, treated as success) |
+| `tryCreateActivityFlag(setId, type, desc, relatedId?)` | **Write** — best-effort staff-bell flag (`source='portal'`); never throws |
 
 ---
 

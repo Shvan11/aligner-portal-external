@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { fetchBatches, updateBatchDays } from '../lib/api';
+import { fetchBatches, updateBatchDays, tryCreateActivityFlag } from '../lib/api';
 import type { AlignerBatch, BatchesState, LoadingState, ErrorState } from '../types';
 
 /**
@@ -54,6 +54,8 @@ export function useBatches(): UseBatchesReturn {
   const updateDays = useCallback(
     async (setId: number, batchId: number, days: number): Promise<void> => {
       await updateBatchDays(batchId, days);
+      // Flag the staff bell (best-effort, never throws — the write succeeded).
+      await tryCreateActivityFlag(setId, 'DaysChanged', `days changed to ${days}`, batchId);
       await loadBatches(setId);
     },
     [loadBatches]

@@ -180,14 +180,17 @@ export interface AlignerNote {
 export type AnnouncementType = 'success' | 'info' | 'warning' | 'urgent';
 
 /**
- * Announcement read record
+ * Announcement read receipt from doctor_announcement_reads (insert-only for the
+ * portal; reverse-syncs home to the staff app's receipts UI)
  */
 export interface AnnouncementRead {
+  announcement_id: number;
   read_at: string;
 }
 
 /**
- * Doctor announcement from doctor_announcements table
+ * Doctor announcement from doctor_announcements table (staff-authored,
+ * forward-synced to the mirror; read here under RLS)
  */
 export interface DoctorAnnouncement {
   announcement_id: number;
@@ -199,14 +202,31 @@ export interface DoctorAnnouncement {
   link_url?: string | null;
   link_text?: string | null;
   expires_at?: string | null;
+  /** Set on system-generated batch events; NULL on staff-composed messages. */
+  auto_event?: 'batch_manufactured' | 'batch_delivered' | null;
+  related_batch_id?: number | null;
+  created_by?: string | null;
   created_at: string;
-  // Nested relations from Supabase
-  doctor_announcement_reads?: AnnouncementRead[];
 }
 
+// =============================================================================
+// ACTIVITY FLAG TYPES (staff "Portal activity" bell)
+// =============================================================================
+
 /**
- * Announcement with toast ID for UI
+ * Activity flag type values (the widened ck_activitytype set)
  */
-export interface AnnouncementWithToastId extends DoctorAnnouncement {
-  toastId: number;
+export type ActivityFlagType = 'DaysChanged' | 'DoctorNote' | 'PhotoUploaded' | 'FileUploaded';
+
+/**
+ * Insert shape for aligner_activity_flags — exactly the columns the portal's
+ * column-level INSERT grant covers (sql/phase3-announcements.sql). RLS pins
+ * source='portal' and the caller's own set.
+ */
+export interface ActivityFlagInsert {
+  aligner_set_id: number;
+  activity_type: ActivityFlagType;
+  activity_description: string;
+  related_record_id?: number | null;
+  source: 'portal';
 }

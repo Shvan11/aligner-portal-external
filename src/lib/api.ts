@@ -24,6 +24,10 @@ import type {
   Patient,
   WorkDataMap,
   NoteType,
+  DoctorAnnouncement,
+  AnnouncementRead,
+  ActivityFlagType,
+  ActivityFlagInsert,
 } from '../types';
 
 // =============================================================================
@@ -367,7 +371,54 @@ export async function createNote(
     .single();
 
   if (error) throw error;
-  return (data as AlignerNote) ?? null;
+  const note = (data as AlignerNote) ?? null;
+
+  // Flag the staff bell (best-effort — the note itself already succeeded).
+  await tryCreateActivityFlag(
+    setId,
+    'DoctorNote',
+    `added a note: "${text.length > 80 ? `${text.slice(0, 80)}…` : text}"`,
+    note?.note_id
+  );
+
+  return note;
+}
+
+/**
+ * Best-effort activity flag for the STAFF app's "Portal activity" header bell:
+ * an INSERT into aligner_activity_flags with source='portal' that reverse-syncs
+ * home like the other Phase 2/3b writes. RLS (sql/phase3-announcements.sql)
+ * pins source='portal', the four activity types, and the caller's own set;
+ * is_read isn't granted (its DB default is already false — the row must arrive
+ * unread or the bell never fires).
+ *
+ * The flag is telemetry riding on a primary action (note / days / upload) that
+ * has ALREADY succeeded — so this never throws: one retry, then swallow. A lost
+ * flag only costs a bell entry; the upload/note itself is still visible in the
+ * aligner pages.
+ */
+export async function tryCreateActivityFlag(
+  setId: number,
+  activityType: ActivityFlagType,
+  description: string,
+  relatedRecordId?: number
+): Promise<void> {
+  if (!setId) return;
+  const row: ActivityFlagInsert = {
+    aligner_set_id: setId,
+    activity_type: activityType,
+    activity_description: description,
+    related_record_id: relatedRecordId ?? null,
+    source: 'portal',
+  };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { error } = await supabase.from('aligner_activity_flags').insert(row);
+      if (!error) return;
+    } catch {
+      // network-level failure — fall through to the retry / give up
+    }
+  }
 }
 
 /**
@@ -395,6 +446,66 @@ export async function updateBatchDays(batchId: number, days: number): Promise<vo
   if (!data || data.length === 0) {
     throw new Error('Batch not found or not updatable');
   }
+}
+
+// =============================================================================
+// ANNOUNCEMENTS — Phase 3b (staff-authored, forward-synced; receipts written
+// here and reverse-synced home)
+//
+// doctor_announcements is composed in the STAFF app (manual messages + auto
+// batch-manufactured/delivered events) and forward-syncs to the mirror, where
+// RLS (sql/phase3-announcements.sql) shows a doctor broadcast rows + rows
+// targeted at their dr_id. Dismissing inserts a doctor_announcement_reads
+// receipt (updated_at + EVEN ids → reverse-syncs home, where the staff
+// receipts UI reads it). Receipts are insert-only — no UPDATE grant.
+// =============================================================================
+
+/**
+ * Fetch the doctor's UNREAD announcements, newest first. Two queries joined in
+ * JS (portal convention — no PostgREST embedding): visible announcements that
+ * haven't expired, minus the ones the doctor already has a read receipt for.
+ */
+export async function fetchAnnouncements(drId: number): Promise<DoctorAnnouncement[]> {
+  if (!drId) return [];
+
+  const [annRes, readRes] = await Promise.all([
+    supabase
+      .from('doctor_announcements')
+      .select('*')
+      .or(`target_doctor_id.is.null,target_doctor_id.eq.${drId}`)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .order('created_at', { ascending: false }),
+    supabase.from('doctor_announcement_reads').select('announcement_id, read_at').eq('dr_id', drId),
+  ]);
+
+  if (annRes.error) throw annRes.error;
+  if (readRes.error) throw readRes.error;
+
+  const readIds = new Set(
+    ((readRes.data as AnnouncementRead[]) || []).map((r) => r.announcement_id)
+  );
+  return ((annRes.data as DoctorAnnouncement[]) || []).filter(
+    (a) => !readIds.has(a.announcement_id)
+  );
+}
+
+/**
+ * Dismiss (mark read) one announcement: upsert the receipt with
+ * ignoreDuplicates (ON CONFLICT DO NOTHING) so re-dismissing is a no-op.
+ * An announcement deleted by staff between fetch and dismiss surfaces as an
+ * RLS violation (42501 — the INSERT policy's "announcement visible to them"
+ * WITH CHECK subquery fails before any FK check runs), not an FK error; both
+ * that and a straggler 23503 mean "it's gone anyway", i.e. success.
+ */
+export async function dismissAnnouncement(announcementId: number, drId: number): Promise<void> {
+  const { error } = await supabase
+    .from('doctor_announcement_reads')
+    .upsert(
+      { announcement_id: announcementId, dr_id: drId },
+      { onConflict: 'announcement_id,dr_id', ignoreDuplicates: true }
+    );
+
+  if (error && error.code !== '42501' && error.code !== '23503') throw error;
 }
 
 // =============================================================================

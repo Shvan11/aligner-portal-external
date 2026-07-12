@@ -5,7 +5,7 @@
  */
 
 import React, { useState, type ChangeEvent } from 'react';
-import { uploadPhoto } from '../../lib/api';
+import { uploadPhoto, tryCreateActivityFlag } from '../../lib/api';
 import { useToast } from '../../contexts/ToastContext';
 import type { SetPhotoUploadProps } from '../../types';
 
@@ -51,6 +51,14 @@ const SetPhotoUpload: React.FC<SetPhotoUploadProps> = ({ setId, category, onUplo
         setProgress(10 + Math.round(fraction * 85));
       });
       setProgress(100);
+
+      // Flag the staff bell (best-effort, never throws — the file is already in
+      // R2 and visible in PhotosSection; a lost flag must not flip the success UX).
+      await tryCreateActivityFlag(
+        setId,
+        category === 'photos' ? 'PhotoUploaded' : 'FileUploaded',
+        `uploaded ${file.name}`
+      );
 
       await onUploadComplete();
       toast.success(`${category === 'photos' ? 'Photo' : 'File'} uploaded successfully`);

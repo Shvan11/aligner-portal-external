@@ -21,7 +21,8 @@ export type {
   AnnouncementType,
   AnnouncementRead,
   DoctorAnnouncement,
-  AnnouncementWithToastId,
+  ActivityFlagType,
+  ActivityFlagInsert,
 } from './database.types';
 
 // Re-export all API types

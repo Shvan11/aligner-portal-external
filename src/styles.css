@@ -1866,6 +1866,186 @@ body {
     font-size: 0.875rem;
 }
 
+/* ===== ANNOUNCEMENTS — clinic → doctor banner (Phase 3b) ===== */
+/* Sits between the header band and .portal-main; width matches the main
+   column's 1400px + 2rem gutters. Tinted-badge language: white card, hairline,
+   a primary accent edge, and per-type soft tint + strong text (never solid
+   white-on-color). */
+.announcements-banner {
+    width: calc(100% - 4rem);
+    max-width: calc(1400px - 4rem);
+    margin: 1.25rem auto 0;
+    background: var(--portal-card);
+    border: 1px solid var(--portal-hairline);
+    border-inline-start: 4px solid var(--portal-primary);
+    border-radius: var(--radius-card);
+    box-shadow: var(--portal-shadow);
+    overflow: hidden;
+    animation: rise 0.35s ease-out backwards;
+}
+
+.announcements-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 1.1rem;
+    background: var(--portal-mint);
+    border-bottom: 1px solid var(--portal-hairline);
+}
+
+.announcements-title {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--portal-ink);
+    font-size: 0.95rem;
+}
+
+.announcements-title i {
+    color: var(--portal-primary);
+    font-size: 1.05rem;
+}
+
+.dismiss-all-btn {
+    background: var(--portal-card);
+    border: 1px solid var(--portal-hairline);
+    color: var(--portal-grey-dark);
+    padding: 0.4rem 0.85rem;
+    border-radius: var(--radius-btn);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.dismiss-all-btn:hover {
+    border-color: var(--portal-primary);
+    color: var(--portal-primary-dark);
+    box-shadow: var(--portal-shadow-xs);
+}
+
+.announcements-list {
+    padding: 0;
+}
+
+.announcement-item {
+    padding: 0.9rem 1.1rem;
+    border-bottom: 1px solid var(--portal-hairline);
+    border-inline-start: 3px solid transparent;
+}
+
+.announcement-item:last-child {
+    border-bottom: none;
+}
+
+/* Per-type accent: soft tint + strong edge (status pair pattern) */
+.announcement-info {
+    border-inline-start-color: var(--portal-accent);
+}
+
+.announcement-success {
+    border-inline-start-color: var(--portal-success);
+    background: var(--portal-success-tint);
+}
+
+.announcement-warning {
+    border-inline-start-color: var(--portal-warning);
+    background: var(--portal-warning-tint);
+}
+
+.announcement-urgent {
+    border-inline-start-color: var(--portal-error);
+    background: var(--portal-error-tint);
+}
+
+.announcement-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.announcement-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.announcement-item-title {
+    font-family: var(--font-display);
+    color: var(--portal-ink);
+    font-size: 0.95rem;
+    margin: 0;
+}
+
+.announcement-dismiss-btn {
+    background: none;
+    border: none;
+    color: var(--portal-grey);
+    cursor: pointer;
+    padding: 0.25rem;
+    line-height: 1;
+    transition: color 0.2s;
+    font-size: 1rem;
+}
+
+.announcement-dismiss-btn:hover {
+    color: var(--portal-ink);
+}
+
+.announcement-message {
+    color: var(--portal-grey-dark);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+.announcement-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 0.15rem;
+}
+
+.announcement-time {
+    font-size: 0.8rem;
+    color: var(--portal-grey);
+}
+
+.announcement-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--portal-primary-dark);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+
+.announcement-link:hover {
+    color: var(--portal-primary);
+    text-decoration: underline;
+}
+
+.announcement-link i {
+    font-size: 0.75rem;
+}
+
+.announcements-more {
+    padding: 0.7rem 1.1rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--portal-grey);
+    background: var(--portal-mint);
+    border-top: 1px solid var(--portal-hairline);
+}
+
 /* ===== TOASTS ===== */
 .toast-container {
     position: fixed;
@@ -2000,6 +2180,11 @@ body {
 @media (max-width: 768px) {
     .portal-main {
         padding: 1.25rem 1rem 2.5rem;
+    }
+
+    .announcements-banner {
+        width: calc(100% - 2rem);
+        margin-top: 1rem;
     }
 
     .portal-header {
