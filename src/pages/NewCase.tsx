@@ -192,7 +192,7 @@ const NewCase: React.FC = () => {
           <div className="new-case-card">
             <div className="new-case-heading">
               <h2>New Case</h2>
-              <p>Submit a new patient for aligner treatment. The clinic is notified automatically.</p>
+              <p>Submit a new patient for aligner treatment. The lab is notified automatically.</p>
             </div>
 
             {/* Patient name */}
