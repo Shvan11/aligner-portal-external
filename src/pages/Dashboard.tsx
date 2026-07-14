@@ -133,6 +133,14 @@ const Dashboard: React.FC = () => {
   // Get active cases count
   const getActiveCasesCount = (): number => cases.filter(c => c.active_sets > 0).length;
 
+  // Time-of-day greeting for the welcome hero
+  const getGreeting = (): string => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   // Render loading state
   if (loading) {
     return (
@@ -173,6 +181,23 @@ const Dashboard: React.FC = () => {
       <AnnouncementBanner doctorId={doctor?.dr_id} />
 
       <main className="portal-main">
+        {/* Welcome hero (personalized greeting + New Case CTA) */}
+        {doctor && (
+          <section className="dashboard-hero">
+            <div className="dashboard-hero-content">
+              <span className="dashboard-hero-kicker">{getGreeting()}</span>
+              <h1 className="dashboard-hero-title">Dr. {doctor.doctor_name}</h1>
+              <p className="dashboard-hero-sub">
+                Welcome back to your aligner portal — review your cases or start a new one.
+              </p>
+            </div>
+            <button className="dashboard-hero-cta" onClick={() => navigate('/new-case')}>
+              <i className="fas fa-plus" aria-hidden="true"></i>
+              New Case
+            </button>
+          </section>
+        )}
+
         {/* Admin Doctor Selector */}
         {adminEmail && !impersonatedDoctor && (
           <AdminDoctorSelector onDoctorSelect={handleAdminDoctorSelect} />

@@ -13,3 +13,9 @@ verify_jwt = false
 # Same convention: the function verifies the minted portal JWT itself (sent in
 # the dedicated x-portal-token header, not Authorization).
 verify_jwt = false
+
+[functions.aligner-portal-cases]
+# Same convention: the function verifies the minted portal JWT itself (sent in
+# the dedicated x-portal-token header, not Authorization). Creates the case
+# records under the service role — see functions/aligner-portal-cases/index.ts.
+verify_jwt = false

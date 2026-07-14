@@ -6,6 +6,7 @@
 
 ### Purpose
 This is a **client-facing portal** that allows partner doctors to:
+- Submit a brand-new case (patient + photos/scans) that auto-creates the clinical records
 - View and manage their aligner cases
 - Track aligner sets, batches, and delivery status
 - Add notes and communicate with the lab
@@ -33,7 +34,7 @@ header bell after reverse sync.
 | Metric | Count |
 |--------|-------|
 | React Components (TSX) | 18 |
-| Pages | 2 |
+| Pages | 3 |
 | Custom Hooks | 4 |
 | Contexts | 1 |
 | Type Definition Files | 4 |
@@ -152,7 +153,8 @@ Simple 3-route structure using React Router v7:
 
 | Route | Component | Purpose |
 |-------|-----------|---------|
-| `/` | Dashboard | List of all cases with stats |
+| `/` | Dashboard | Welcome hero + list of all cases with stats |
+| `/new-case` | NewCase | Doctor-submitted new case (auto-creates patient→work→set) |
 | `/case/:workId` | CaseDetail | Individual case with sets, batches, notes |
 | `*` | Redirect to `/` | Catch-all redirect |
 
@@ -270,6 +272,40 @@ Smoke test: `node scripts/test-photos-fn.mjs` (mints JWTs from the main app's
   (`supabase/functions/aligner-portal-auth/index.ts`). Deploy with `verify_jwt = false`.
 - `aligner-portal-photos` - case-photo pipeline over the private Storage bucket (see above).
   Deploy with `verify_jwt = false`.
+- `aligner-portal-cases` - doctor-submitted new-case creation (see "New case submission" below).
+  Deploy with `verify_jwt = false`.
+
+### New case submission (doctor-created cases) → SERVICE-ROLE auto-create, reverse-synced
+A doctor can submit a brand-new case from the portal (`/new-case`): patient name/age/sex + an
+optional note + photos/scans. Unlike every other portal write (which goes straight to the mirror
+under the doctor's RLS token), case creation runs through a **service-role function** — the
+same-origin Cloudflare **Pages Function** `functions/api/cases/[[path]].ts` in production, with a
+lockstep **Supabase Edge twin** `supabase/functions/aligner-portal-cases/index.ts` as the smoke-test
+target (`/api/cases` only exists on a deployed Pages build — no Vite `/api` proxy, same as photos).
+The function (`POST …/create`):
+- verifies the `x-portal-token` JWT (dr_id from the verified claims only — never the body);
+- validates fields (name 2–80, age 1–120, sex→gender 1|2, note ≤2000) and pre-checks for a
+  duplicate `patient_name` (citext, case-insensitive) → **409 `DUPLICATE_PATIENT_NAME`**;
+- sequentially inserts (order = local-FK-safe on reverse apply) `patients` (approx DOB from age +
+  provenance note) → `works` (`total_required:0`, currency/`type_of_work`/`dr_id` pinned from the
+  three `PORTAL_CASE_*` env vars) → `aligner_sets` (`aligner_dr_id`=the doctor, so it shows on their
+  dashboard) → optional `aligner_notes` (`is_read:false` explicit) → one **`CaseSubmitted`**
+  `aligner_activity_flags` row (`source='portal'`, best-effort) for the staff bell;
+- compensates best-effort (reverse-order deletes) on a mid-chain failure, then 500 "nothing saved".
+All five tables are already reverse-sync-capable, so the records ride the existing reverse-CDC path
+home. **Why service-role, not an `authenticated` grant:** the chain has clinic-controlled values +
+cross-table integrity RLS can't express; granting the browser INSERT on those tables would be a
+larger attack surface than a server-held key. Config env/secrets (fail 500 if unset):
+`PORTAL_CASE_WORK_TYPE_ID` (aligner `work_types.id`), `PORTAL_CASE_DR_ID` (an `employees.id`),
+`PORTAL_CASE_CURRENCY`. Deploy: `scripts/deploy-cases-fn.ps1`; smoke test: `node scripts/test-cases-fn.mjs`.
+
+**Activity-type asymmetry (deliberate):** the DB `ck_activitytype` check constraint allows **five**
+types (`DaysChanged`, `DoctorNote`, `PhotoUploaded`, `FileUploaded`, `CaseSubmitted`), but the
+portal's `authenticated` INSERT policy on `aligner_activity_flags`
+(`sql/phase3-announcements.sql`) still caps at the **first four** — `CaseSubmitted` is written ONLY
+by the service-role cases function, so a browser client cannot forge a case submission. The portal's
+own `ActivityFlagType` (`src/types/database.types.ts`) likewise stays at the four browser-writable
+types.
 
 ### Parked (no raw equivalent — not built)
 - Payments (`aligner_set_payments` was a derived view). Type defs remain in `src/types/` but are
@@ -494,6 +530,7 @@ All API functions are in `src/lib/api.ts`:
 | `fetchAnnouncements(drId)` | Unread, unexpired announcements (broadcast + targeted; reads joined in JS) |
 | `dismissAnnouncement(id, drId)` | **Write** — insert a read receipt (→ reverse-sync; 42501/23503 = already gone, treated as success) |
 | `tryCreateActivityFlag(setId, type, desc, relatedId?)` | **Write** — best-effort staff-bell flag (`source='portal'`); never throws |
+| `createCase({patientName, age, sex, note?})` | **Write** — submit a new case via the service-role cases function → `{person_id, work_id, aligner_set_id}` (409 = duplicate name, message surfaced verbatim) |
 
 ---
 

@@ -627,6 +627,89 @@ export async function deletePhoto(path: string): Promise<void> {
 }
 
 // =============================================================================
+// CASES — doctor-submitted "New Case" (service-role function; auto-creates records)
+//
+// Unlike every other portal write, this does NOT go straight to the mirror under
+// the doctor's RLS token: case creation is a multi-table chain (patient → work →
+// aligner set) with clinic-controlled values RLS cannot express, so it runs
+// through a SERVICE-ROLE function (the same-origin Pages Function at /api/cases,
+// twin of the aligner-portal-cases Edge Function). The function pins identity from
+// the verified x-portal-token and auto-creates the records; they reverse-sync home
+// like the rest. The `CaseSubmitted` staff-bell flag is dropped server-side (the
+// browser role has no grant for it), so no tryCreateActivityFlag call here.
+// =============================================================================
+
+const casesFnUrl = '/api/cases';
+
+/**
+ * Call the cases function; unwraps errors into a thrown message. A duplicate
+ * patient name comes back 409 with a friendly `message` (error === the
+ * 'DUPLICATE_PATIENT_NAME' code) — surfaced verbatim so the form can toast it.
+ */
+async function casesFnFetch(path: string, init: RequestInit = {}): Promise<Record<string, unknown>> {
+  const token = await getPortalToken();
+  if (!token) {
+    throw new Error('Portal session not established');
+  }
+  const res = await fetch(`${casesFnUrl}${path}`, {
+    ...init,
+    headers: {
+      ...(init.headers as Record<string, string> | undefined),
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+      'x-portal-token': token,
+    },
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok || body.success === false) {
+    const friendly =
+      typeof body.message === 'string' && body.message
+        ? body.message
+        : typeof body.error === 'string' && body.error
+          ? body.error
+          : `Case request failed (${res.status})`;
+    throw new Error(friendly);
+  }
+  return body;
+}
+
+export interface CreateCaseInput {
+  patientName: string;
+  age: number;
+  sex: 'Male' | 'Female';
+  note?: string;
+}
+
+export interface CreateCaseResult {
+  person_id: number;
+  work_id: number;
+  aligner_set_id: number;
+}
+
+/**
+ * Submit a new case. The service-role function creates patient → work → aligner
+ * set (+ optional doctor note), drops the staff-bell flag, and returns the new
+ * ids. A 409 (duplicate patient name) throws with the friendly message.
+ */
+export async function createCase(input: CreateCaseInput): Promise<CreateCaseResult> {
+  const body = await casesFnFetch('/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      patientName: input.patientName,
+      age: input.age,
+      sex: input.sex,
+      note: input.note?.trim() || undefined,
+    }),
+  });
+  return {
+    person_id: Number(body.person_id),
+    work_id: Number(body.work_id),
+    aligner_set_id: Number(body.aligner_set_id),
+  };
+}
+
+// =============================================================================
 // CASE DETAIL API
 // =============================================================================
 
