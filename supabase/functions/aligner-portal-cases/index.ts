@@ -60,6 +60,11 @@ const JWT_SECRET = Deno.env.get('PORTAL_JWT_SECRET') ?? '';
 const CASE_WORK_TYPE_ID = Number(Deno.env.get('PORTAL_CASE_WORK_TYPE_ID'));
 const CASE_DR_ID = Number(Deno.env.get('PORTAL_CASE_DR_ID'));
 const CASE_CURRENCY = (Deno.env.get('PORTAL_CASE_CURRENCY') ?? '').trim();
+// A portal case is an Aligner-Lab case: stamp the patient's type explicitly so the
+// mirror row is Aligner Lab from the moment it's created (the main app's works-derived
+// classifier + reverse-sink recompute independently arrive at the same value from the
+// aligner-lab work). Kept in sync with shared/treatment-taxonomy.ts PATIENT_TYPE_IDS.ALIGNER_LAB.
+const ALIGNER_LAB_PATIENT_TYPE_ID = 9;
 const ALLOWED_ORIGINS = (Deno.env.get('PORTAL_ALLOWED_ORIGIN') ?? '*')
   .split(',')
   .map((s) => s.trim())
@@ -222,6 +227,7 @@ async function handleCreate(req: Request, drId: number): Promise<Response> {
         patient_name: patientName,
         date_of_birth: approxDobFromAge(age),
         gender,
+        patient_type_id: ALIGNER_LAB_PATIENT_TYPE_ID,
         notes: `Created via doctor portal by Dr ${doctorName} on ${today} — reported age ${age} (DOB approximate).`,
       },
       'person_id'

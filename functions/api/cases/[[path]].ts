@@ -137,6 +137,11 @@ export const onRequest: PagesFunction<any> = async (context) => {
   const workTypeId = Number(env.PORTAL_CASE_WORK_TYPE_ID);
   const caseDrId = Number(env.PORTAL_CASE_DR_ID);
   const currency = typeof env.PORTAL_CASE_CURRENCY === 'string' ? env.PORTAL_CASE_CURRENCY.trim() : '';
+  // A portal case is an Aligner-Lab case: stamp the patient's type explicitly so the
+  // mirror row is Aligner Lab from creation (the main app's works-derived classifier +
+  // reverse-sink recompute independently reach the same value from the aligner-lab
+  // work). Kept in sync with shared/treatment-taxonomy.ts PATIENT_TYPE_IDS.ALIGNER_LAB.
+  const alignerLabPatientTypeId = 9;
   if (!Number.isInteger(workTypeId) || workTypeId <= 0) {
     return json(request, env, { success: false, error: 'PORTAL_CASE_WORK_TYPE_ID is not configured' }, 500);
   }
@@ -249,6 +254,7 @@ export const onRequest: PagesFunction<any> = async (context) => {
             patient_name: patientName,
             date_of_birth: approxDobFromAge(age),
             gender,
+            patient_type_id: alignerLabPatientTypeId,
             notes: `Created via doctor portal by Dr ${doctorName} on ${today} — reported age ${age} (DOB approximate).`,
           },
           'person_id'
